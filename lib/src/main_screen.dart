@@ -64,7 +64,8 @@ class _AppDialog {
 }
 
 class _MainScreenState extends State<MainScreen>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver
+    implements FullscreenHost {
   late DevicePrefs _prefs;
   late DeviceInfo _info;
   String _deviceToken = ''; // f7834v
@@ -139,6 +140,10 @@ class _MainScreenState extends State<MainScreen>
   // ---- 대화상자 ----
   _AppDialog? _dialog; // f7832t
 
+  // ---- 동영상 전체 화면(통합본 6-11) ----
+  Widget? _customView;
+  VoidCallback? _exitCustomView;
+
   // ---- 명령 처리 ----
   Future<void> _queue = Future<void>.value();
 
@@ -205,7 +210,11 @@ class _MainScreenState extends State<MainScreen>
     _prefs = await DevicePrefs.instance();
     _info = await NativeBridge.deviceInfo();
     _prefs.webview = 'main';
-    _main = await WebEntry.create('main', onChanged: _refresh);
+    _main = await WebEntry.create(
+      'main',
+      onChanged: _refresh,
+      fullscreen: this,
+    );
     if (!mounted) return;
     setState(() => _ready = true);
     if (await NativeBridge.nfcState() == 'none') {
@@ -790,7 +799,11 @@ class _MainScreenState extends State<MainScreen>
   Future<void> _z0() async {
     final WebEntry? old = _popup;
     if (old != null) _frame.remove(old);
-    final WebEntry entry = await WebEntry.create('popup', onChanged: _refresh);
+    final WebEntry entry = await WebEntry.create(
+      'popup',
+      onChanged: _refresh,
+      fullscreen: this,
+    );
     _popup = entry;
     _frame.add(entry);
   }
@@ -1224,6 +1237,7 @@ class _MainScreenState extends State<MainScreen>
     final WebEntry entry = await WebEntry.create(
       isChild ? 'child' : 'grandchild',
       onChanged: _refresh,
+      fullscreen: this,
       onPageFinished: (String url) {
         // 자식 창에서 통합정보시스템 첫 화면이 끝나면 뒤로가기(원본 그대로).
         if (isChild && url == 'https://tis.ut.ac.kr/main.do') {
@@ -1305,7 +1319,45 @@ class _MainScreenState extends State<MainScreen>
     }
   }
 
+  // ======================================================================
+  // 동영상 전체 화면(통합본 6-11)
+  // ======================================================================
+
+  /// 원본은 `onShowCustomView`를 처리하지 않고 화면도 세로 고정이라 동영상 전체 화면이 되지
+  /// 않았다. 개선판은 웹뷰가 넘긴 전체 화면 뷰를 화면 전체에 띄우고, 그동안만 가로 회전과 시스템
+  /// 바 숨기기를 허용한다.
+  @override
+  void show(Widget view, VoidCallback exit) {
+    _customView = view;
+    _exitCustomView = exit;
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    SystemChrome.setPreferredOrientations(const <DeviceOrientation>[
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    _refresh();
+  }
+
+  @override
+  void hide() {
+    if (_customView == null) return;
+    _customView = null;
+    _exitCustomView = null;
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setPreferredOrientations(const <DeviceOrientation>[
+      DeviceOrientation.portraitUp,
+    ]);
+    _refresh();
+  }
+
   void _onBackPressed() {
+    // 동영상 전체 화면이면 뒤로 키는 전체 화면만 끝낸다.
+    final VoidCallback? exitCustomView = _exitCustomView;
+    if (exitCustomView != null) {
+      exitCustomView();
+      return;
+    }
     // 대화상자는 취소할 수 없는 창이라 뒤로 키를 먹는다. 원본은 로딩 표시도 뒤로 키를 먹었지만
     // 개선판의 로딩 표시는 입력을 막지 않는다(통합본 3-31).
     if (_dialog != null) return;
@@ -1397,6 +1449,10 @@ class _MainScreenState extends State<MainScreen>
               if (_loading) const Positioned.fill(child: _LoadingLayer()),
               if (_dialog != null)
                 Positioned.fill(child: _dialogLayer(_dialog!)),
+              if (_customView != null)
+                Positioned.fill(
+                  child: ColoredBox(color: _black, child: _customView),
+                ),
             ],
           ),
         ),

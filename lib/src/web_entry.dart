@@ -8,6 +8,13 @@ import 'connection_notice.dart';
 import 'native_bridge.dart';
 import 'page_load.dart';
 
+/// 동영상 전체 화면을 띄우고 걷는 쪽(메인 화면). [show]의 두 번째 인자를 부르면 웹뷰가 전체
+/// 화면을 끝내고 [hide]를 부른다.
+abstract interface class FullscreenHost {
+  void show(Widget view, VoidCallback exit);
+  void hide();
+}
+
 /// 원본의 WebView 하나(메인, 팝업, `window.open`으로 열린 자식·손자).
 ///
 /// 개선판에서는 본문 프레임 불러오기 상태([PageLoad])를 웹뷰마다 기억해서 로딩 표시와 연결
@@ -67,10 +74,11 @@ class WebEntry {
   /// webview_flutter로 WebView를 만들고, 네이티브 쪽에서 원본 설정을 입힌다.
   ///
   /// [onChanged]는 로딩 표시나 연결 안내가 바뀔 때, [onPageFinished]는 원본처럼 페이지가 끝날 때
-  /// 불린다.
+  /// 불린다. [fullscreen]은 동영상 전체 화면(`onShowCustomView`)을 맡는다(통합본 6-11).
   static Future<WebEntry> create(
     String kind, {
     required VoidCallback onChanged,
+    required FullscreenHost fullscreen,
     void Function(String url)? onPageFinished,
   }) async {
     final WebViewController controller =
@@ -91,6 +99,11 @@ class WebEntry {
         onWebResourceError: entry._resourceError,
       ),
     );
+    await (controller.platform as AndroidWebViewController)
+        .setCustomWidgetCallbacks(
+          onShowCustomWidget: fullscreen.show,
+          onHideCustomWidget: fullscreen.hide,
+        );
     await NativeBridge.installWebView(entry.id, kind);
     _byId.removeWhere((_, WeakReference<WebEntry> ref) => ref.target == null);
     _byId[entry.id] = WeakReference<WebEntry>(entry);
