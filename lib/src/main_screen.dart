@@ -1042,23 +1042,42 @@ class _MainScreenState extends State<MainScreen>
   // function 명령
   // ======================================================================
 
-  /// `f1()`: QR 화면.
+  /// `f1()`: QR 화면. 개선판은 이때 카메라 권한만 요청한다(통합본 1-1).
   void _f1(JObj action) {
     final String url = action.getJSONObject('config').getString('url');
     _resultUrl = url.contains('?') ? '$url&value=' : '$url?value=';
-    _openCovering<String>(const QrScanScreen()).then((String? result) {
-      if (result == null) {
-        NativeBridge.toast('Cancelled', long: true);
-      } else {
-        _post('$_resultUrl$result');
-      }
-    });
+    _openQr();
   }
 
-  /// `W0()`: 위치 전송.
+  Future<void> _openQr() async {
+    final bool granted = await NativeBridge.requestFeaturePermission(
+      const <String>[NativeBridge.camera],
+      deniedMessage: '카메라 권한이 없어 QR 코드를 읽을 수 없습니다.',
+      settingsMessage:
+          'QR 코드를 읽으려면 카메라 권한이 필요합니다.\n'
+          '[설정 열기] → 권한 → 카메라에서 허용해 주세요.',
+    );
+    if (!granted || !mounted) return;
+    final String? result = await _openCovering<String>(const QrScanScreen());
+    if (result == null) {
+      NativeBridge.toast('Cancelled', long: true);
+    } else {
+      _post('$_resultUrl$result');
+    }
+  }
+
+  /// `W0()`: 위치 전송. 개선판은 이때 위치 권한만 요청한다(통합본 1-1). 거부하면 원본처럼
+  /// 위치를 0으로 보낸다.
   Future<void> _w0(JObj action) async {
     try {
       final String url = action.getJSONObject('config').getString('url');
+      await NativeBridge.requestFeaturePermission(
+        const <String>[NativeBridge.fineLocation, NativeBridge.coarseLocation],
+        deniedMessage: '위치 권한이 없어 현재 위치를 보낼 수 없습니다.',
+        settingsMessage:
+            '현재 위치를 보내려면 위치 권한이 필요합니다.\n'
+            '[설정 열기] → 권한 → 위치에서 허용해 주세요.',
+      );
       final String? full = await NativeBridge.gpsUrl(url);
       if (full != null) _post(full);
     } catch (_) {}
@@ -1101,6 +1120,19 @@ class _MainScreenState extends State<MainScreen>
       _beaconUuids = config.getJSONArray('uuid');
       _resultUrl = url.contains('?') ? '$url&uuid=' : '$url?uuid=';
     } catch (_) {}
+    _startBeacon();
+  }
+
+  /// 원본은 첫 실행에 받아 둔 대략 위치 권한으로 비콘을 찾았다. 개선판은 시작할 때 권한을 묻지
+  /// 않으므로 비콘을 찾을 때 같은 권한을 요청한다. 동작(거부해도 검색 후 전송)은 원본 그대로다.
+  Future<void> _startBeacon() async {
+    if (!await NativeBridge.checkPermissions(const <String>[
+      NativeBridge.coarseLocation,
+    ])) {
+      await NativeBridge.requestPermissions(const <String>[
+        NativeBridge.coarseLocation,
+      ]);
+    }
     NativeBridge.beaconStart();
     Timer(const Duration(seconds: 5), _z0Beacon);
   }

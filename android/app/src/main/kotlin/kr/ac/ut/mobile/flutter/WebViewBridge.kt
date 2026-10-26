@@ -6,6 +6,7 @@ import android.app.DownloadManager
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
@@ -36,7 +37,6 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import io.flutter.plugins.webviewflutter.WebChromeClientProxyApi
 import io.flutter.plugins.webviewflutter.WebViewFlutterAndroidExternalApi
@@ -67,7 +67,10 @@ class WebViewBridge(private val activity: MainActivity) {
     fun install(id: Long, kind: String) {
         val webView = webView(id) ?: return
         val s = webView.settings
-        WebView.setWebContentsDebuggingEnabled(true)
+        // 원본은 출시 버전에서도 켜 두었다. 개선판은 debug 빌드에서만 켠다(통합본 9-1).
+        WebView.setWebContentsDebuggingEnabled(
+            (activity.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0,
+        )
         // webview_flutter가 생성자에서 바꿔 둔 값을 Android 기본값으로 되돌린 뒤 원본 설정을 입힌다.
         s.loadWithOverviewMode = false
         s.useWideViewPort = false
@@ -217,9 +220,26 @@ class WebViewBridge(private val activity: MainActivity) {
         return false
     }
 
-    /** 원본 `j`/`e` 다운로드 처리. */
+    /**
+     * 원본 `j`/`e` 다운로드 처리.
+     *
+     * 원본은 실패하면 그때 저장공간 권한을 요청하고 다시 눌러야 했다. 개선판은 권한이 필요한
+     * Android 9 이하에서만, 권한이 없을 때 먼저 요청하고 허용하면 이어서 내려받는다(통합본 1-1).
+     */
     private fun downloadListener(id: Long) = DownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
         event(id, "download", url)
+        val download = { enqueueDownload(url, userAgent, contentDisposition, mimeType) }
+        val write = Manifest.permission.WRITE_EXTERNAL_STORAGE
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
+            ContextCompat.checkSelfPermission(activity, write) != PackageManager.PERMISSION_GRANTED
+        ) {
+            activity.requestStoragePermission(download)
+        } else {
+            download()
+        }
+    }
+
+    private fun enqueueDownload(url: String, userAgent: String, contentDisposition: String, mimeType: String) {
         try {
             val request = DownloadManager.Request(Uri.parse(url))
             val manager = activity.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
@@ -245,11 +265,7 @@ class WebViewBridge(private val activity: MainActivity) {
             manager.enqueue(request)
             Toast.makeText(activity.applicationContext, "파일이 다운로드됩니다.", Toast.LENGTH_LONG).show()
         } catch (_: Exception) {
-            val write = Manifest.permission.WRITE_EXTERNAL_STORAGE
-            if (ContextCompat.checkSelfPermission(activity, write) != PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(activity.baseContext, "다운로드를 위해\n권한이 필요합니다.", Toast.LENGTH_LONG).show()
-                ActivityCompat.requestPermissions(activity, arrayOf(write), 1004)
-            }
+            Toast.makeText(activity.baseContext, "파일을 내려받지 못했습니다.", Toast.LENGTH_LONG).show()
         }
     }
 
