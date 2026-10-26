@@ -1,6 +1,7 @@
 # 인계 문서 — 기존 스마트모바일 앱을 Flutter로 1:1 이식
 
 > 작성: 2026-10-26, 로컬 Claude Code 세션에서 클라우드 세션으로 넘기기 위해 작성
+> 갱신: 2026-10-26, 클라우드 세션에서 1차 이식 후(1장 현재 상태, 5장 **(재확인)** 표시, 6~8장)
 > 이 문서만 읽고 바로 이어서 작업할 수 있도록, 원본 코드를 읽으며 확인한 동작 규칙을 모두 적었다.
 
 ---
@@ -16,21 +17,25 @@
   - 교통·학식 탭, 길찾기(`mockups/`)는 **새 기능이라 이번 범위가 아니다.** UI/UX 개선점 목록도 반영하지 않는다.
 - 배경: 모바일프로그래밍 수업 4인 팀 프로젝트(기존 앱 UI/UX 개선). 이 작업은 그중 "기존 앱을 Flutter로 옮겨 놓는" 출발점이다. 마감 2026-12-15.
 
-### 현재 상태
+### 현재 상태 (2026-10-26, 클라우드 세션)
 
-- **분석 완료.** 저장소 루트에 Flutter 프로젝트 뼈대만 만들어 두었다(`flutter create --platforms android`, 프로젝트 이름 `knut_smartmobile`, 패키지 `kr.ac.ut.mobile.flutter`). `lib/main.dart`는 아직 기본 카운터 예제다.
-- 원본 디컴파일 코드와 리소스는 `docs/legacy/`에 둔다(아래 3장). **2026-10-26 현재 GitHub 저장소에는 아직 올라오지 않았다.**
+- **1차 이식 완료, 실기기 확인 전.** 5장의 동작 규칙을 모두 코드로 옮겼다. 구조와 원본 대응은 6장.
+- 확인한 것: `flutter analyze` 문제 없음, 단위 테스트 13개 통과(`test/legacy_rules_test.dart`), `flutter build apk --debug` 성공(Kotlin 포함).
+- 확인 못 한 것: 실제 실행. 클라우드에는 기기·에뮬레이터가 없다. 사용자 PC에서 8장 목록으로 확인해야 한다.
+- 원본 자료를 다시 읽으며 이 문서의 분석과 다르게 확인된 곳은 5장 해당 절에 **(재확인)**으로 고쳐 적었다. 팝업 구성 분기는 바이트코드(`dexdump`)로 다시 확인해 5.7 내용이 맞음을 확인했다.
 
 ### 사용자 결정 (2026-10-26, 클라우드 세션에서 확인)
 
 1. **applicationId**: `kr.ac.ut.mobile.flutter`. 원본 앱과 나란히 설치해 비교할 수 있게 한다.
 2. **푸시(FCM)**: Firebase는 넣지 않고 이 문서에만 남긴다(5.19). 푸시로 열렸을 때의 `push_url` 처리 흐름(5.2, 4장 `onNewIntent`)만 옮겨 두어 나중에 붙일 수 있게 한다.
 3. **HCE 학생증 서비스**: 옮기지 않는다(5.20).
-4. **NFC 레코드 3개 미만 태그**: 원본처럼 강제 종료하지 않고 조용히 무시한다(5.15). 이 항목만 원본과 다르다.
+4. **NFC 레코드 3개 미만 태그**: 원본처럼 강제 종료하지 않고 조용히 무시한다(5.15).
+   - 같은 원칙을 원본이 예외로 종료되는 다른 경우에도 적용했다(6.4). 사용자에게 아직 확인받지 않았다.
 
 ### 아직 남은 것
 
-- **시작 화면 배경 이미지**: 해상도별 split APK에만 있어 저장소에 없다(5.2). 사용자 폰에서 꺼내야 한다.
+- **실기기 확인**(8장).
+- **시작 화면 배경 이미지와 앱 아이콘**: 해상도별 split APK에만 있어 저장소에 없다(5.2). 사용자 폰에서 꺼내야 한다. 지금은 흰 화면과 Flutter 기본 아이콘이다.
 
 ---
 
@@ -45,6 +50,16 @@
 
 클라우드 세션에서는 실기기 시험이 안 된다. `flutter analyze`, 빌드까지만 확인하고 실기기 확인은 사용자 PC에서 한다.
 
+### 클라우드 세션 환경
+
+클라우드 컨테이너에는 Flutter와 Android SDK가 없어서 세션마다 설치했다. 환경 설정의 **Setup script**에 넣어 두면 다음 세션부터 캐시된다(7장 스크립트).
+
+| 항목 | 값 |
+|---|---|
+| Flutter | 3.47.2 stable `/opt/flutter` |
+| Android SDK | `/opt/android-sdk` (platform-tools, platforms;android-36, build-tools;36.0.0) |
+| Maven Central | 클라우드 프록시 뒤에서 `repo.maven.apache.org`가 429(요청 과다)를 돌려준다. 컨테이너의 `~/.gradle/init.d/`에 Google 미러로 바꾸는 init 스크립트를 두었다. 저장소 파일은 바꾸지 않았다 |
+
 ---
 
 ## 3. 저장소 안 자료
@@ -55,7 +70,10 @@
 | `docs/legacy/src/` | jadx로 복원한 앱 코드 전부(7개 클래스 + HTTP 도우미). 디컴파일러 주석은 지웠다 |
 | `docs/legacy/res/` | 이식에 필요한 레이아웃·도형·애니메이션·문자열·이미지 |
 | `docs/legacy/AndroidManifest.xml` | 리소스 이름이 풀린 매니페스트 |
-| `mockups/` | 다른 작업(교통·학식·길찾기 개선안) 목업. **이번 작업과 무관** |
+| `스마트모바일 기술 스택.md` | 원본 앱·웹·서버 기술 스택 분석 |
+| `통합본.md` | UI/UX 개선점 목록. **이번 이식에는 반영하지 않는다** |
+| `lib/`, `android/`, `test/`, `assets/` | Flutter 이식 코드(6장) |
+| `mockups/` | 다른 작업(교통·학식·길찾기 개선안) 목업. 이번 작업과 무관해서 GitHub에는 올리지 않았다 |
 
 ### 파일 이름 대응
 
@@ -242,6 +260,12 @@ CoordinatorLayout (바깥 여백 1dp)
 
 "POST 후 응답을 명령 처리기에 넣는다"(`O0`)는 NFC·GPS·흔들기·비콘·QR·url 모두 공통이다.
 
+**(재확인) 명령이 어디서 왔는지에 따라 달라지는 점**
+
+- 웹 페이지가 보낸 명령(`allytteCommandHandler`)은 JavaBridge 스레드에서 처리된다. 메인·팝업 구성, 팝업 닫기(A0), NFC 확인은 `runOnUiThread`로 넘겨져 x0이 끝난 뒤 실행되고, `webview` 값 저장은 그보다 먼저 된다. 버튼·POST 응답에서 온 명령은 UI 스레드라서 구성이 먼저 끝나고 값 저장이 뒤에 된다. 그래서 `B0`가 어느 웹뷰에 불러올지가 달라질 수 있다.
+- 웹 페이지가 보낸 `function: back`은 JavaBridge 스레드에서 `WebView.canGoBack()`을 불러 예외가 나므로 **아무 일도 하지 않고** 같은 목록의 남은 명령도 버려진다. 버튼이나 뒤로 키의 뒤로가기는 정상.
+- 2번의 주소 바꾸기는 웹 페이지가 보낸 문자열에만 맞는다. 서버 응답과 버튼 명령은 Android `JSONObject.toString()`을 거쳐 `/`가 `\/`로 바뀐 문자열이라 맞지 않는다.
+
 ### 5.6 메인 웹뷰 구성 (`webview`/`main`, 클래스 `w`)
 
 1. `f7676E = true`. 팝업이 열려 있으면(`f7670B`) 닫기(A0). 팝업 애니메이션 취소
@@ -250,8 +274,10 @@ CoordinatorLayout (바깥 여백 1dp)
    - `bgColor`: 문자열 `"null"` → 흰색, `"transparent"` → 투명, 그 외 색상 코드
    - `bgImage`가 `"null"`이 아니면 그 이미지를 받아 **메인 헤더 배경**으로(5.8 참고)
    - `border`: `"null"` → 테두리 없음, 숫자 → 그 dp 두께 검은 테두리
-   - `menu.left`/`center`/`right`: 없으면 그 칸 숨김. 있으면 칸을 비우고 버튼 추가(객체 하나면 J0, 배열이면 I0 / 5.8). 칸 이름 `main_left`·`main_center`·`main_right`
+   - `menu.left`/`center`/`right`: 없으면 그 칸 숨김. 있으면 칸을 보이고 비운 뒤 J0로 버튼 하나 추가(5.8). 칸 이름 `main_left`·`main_center`·`main_right`
+   - **(재확인)** 코드가 `getJSONObject(키)`를 먼저 부르고 `instanceof`를 검사해서, 값이 **배열이면 I0로 가지 않고 예외로 이후 구성(푸터, 주소 불러오기)이 모두 중단된다.** 이전 판의 "배열이면 I0"는 틀렸다(바이트코드 확인).
 4. `config.footer`가 없으면 푸터와 구분선 숨김. 있으면 둘 다 보이고 푸터 구성(H0)
+   - **(재확인)** H0는 시작할 때 `f7676E = false`로 바꾼다. 그래서 푸터가 있는 메인 구성 뒤 첫 뒤로가기는 팝업 쪽 분기(5.13 4번)로 가서, 보이는 변화 없이 `f7676E`만 true로 돌려놓는다.
 5. `config.url`을 헤더와 함께 로드(5.10)
 
 ### 5.7 팝업 웹뷰 구성 (`webview`/`popup`, 클래스 `RunnableC0257a`)
@@ -311,9 +337,13 @@ CoordinatorLayout (바깥 여백 1dp)
   - `null` → 버튼 배경 전체를 이미지로
   - `left`/`top`/`right`/`bottom` → 그쪽에 아이콘(compound drawable, 원본 크기), 그쪽 padding 30dp
   - 참고: `setCompoundDrawables`에 bounds 없는 drawable을 넘겨서 실제로는 아이콘이 안 보일 수 있다(원본 동작 그대로 확인 필요)
+  - **(재확인)** 이식에서는 안 보이는 쪽으로 옮겼다(새 BitmapDrawable의 bounds는 0이라 그려지지 않는다). 이 경우와 `align`이 그 밖의 값일 때는 배경이 바뀌지 않아 **AppCompat 기본 회색 버튼**(#d6d7d7, 그림자) 모양이 남는다. 실기기에서 확인할 것
+  - 내려받은 그림은 아이콘·헤더 배경이 함께 쓰는 필드 하나(`f7721e0`)에 들어간다. 내려받기가 실패하면 그 필드가 바뀌지 않아 **직전에 받은 그림이 대신 쓰인다**
+- 버튼 자체는 `new Button(this)`: 최소 88×48dp, 글자 14sp 굵게·대문자, 안쪽 여백 가로 12dp·세로 10dp(배경을 바꿔도 남음). 정사각형 칸 안에서는 칸 크기로 줄어든다
 - `name`이 있으면 글자, 14sp
 - 글자색: `color`가 있으면 그 색, 없으면 칸 이름이 `popup_full`일 때 흰색, 그 외 검정
 - `action`이 있으면 누를 때 **버튼 JSON 전체**를 명령 처리기에 넣는다(`{"action":[…]}` 구조이므로 그대로 실행됨). 칸 이름이 `dialog`면 대화상자도 닫는다
+  - **(재확인)** 명령을 끝까지 처리한 **뒤에** 대화상자를 닫으므로, 그 명령이 새 대화상자를 띄우면 새 대화상자가 바로 닫힌다
 - 메뉴 칸 채우기:
   - I0(배열) / J0(객체 하나): 아이콘이 없으면 버튼만, 있으면 `f7680G`×`f7680G` px 칸에 넣어서
   - 메인 푸터 H0: 항목마다 가로 균등(weight 1) 가운데 정렬 칸 안에 `f7682H`×`f7682H` px 칸 + 버튼(칸 이름 `main`)
@@ -373,6 +403,8 @@ CoordinatorLayout (바깥 여백 1dp)
 - 애니메이션 끝 처리(같은 리스너가 등장·퇴장 모두에 붙어 있음): `f7670B`가 false였으면 true로(=등장 완료), true였으면 배경을 숨기고(`INVISIBLE`) false로(=퇴장 완료). 오른쪽 리스너는 false였을 때 저장된 `webview`가 `"main"`이면 false 유지
 - 팝업 반투명 배경을 누르면 A0
 - `f7676E`는 팝업이 열릴 때 false, 메인 구성·뒤로가기로 팝업이 닫힐 때 true
+- **(재확인)** 애니메이션 XML은 모두 `fillAfter="true"`다. Android에서 애니메이션이 붙어 있는 뷰는 INVISIBLE·GONE이어도 계속 그려지고 터치도 받는다(`clearAnimation()` 전까지). `left` 팝업은 등장 애니메이션을 반투명 배경에 걸기 때문에, 닫은 뒤에도 배경과 팝업이 화면에 남아 있다가 메인 구성이나 `center`·`full` 팝업이 배경의 애니메이션을 지울 때 사라진다. ≡ 메뉴는 오른쪽에서 나오므로(통합본 3-5) 평소에는 드러나지 않을 것으로 본다
+- **(재확인)** 애니메이션 시간은 처음 그려지는 프레임에서 시작한다. 숨겨져 그려지지 않는 동안에는 멈춰 있다가, 다시 그려질 때 이미 500ms가 지났으면 곧바로 끝 처리가 불린다. 이식도 같은 규칙(`lib/src/popup_animation.dart`)
 
 ### 5.13 뒤로가기 y0
 
@@ -438,20 +470,133 @@ CoordinatorLayout (바깥 여백 1dp)
 - 글자 크기 85% 고정
 - 메인 푸터 처음 "*" 버튼
 - 이미지(아이콘·배경)를 화면 그리는 중에 동기로 내려받음 — Flutter에서는 동기 대기가 불가하니 비동기로 받되 결과는 같게
+  - 이식에서는 명령을 한 줄로 세워 처리해서, 내려받기가 끝날 때까지 다음 명령(뒤로가기 포함)이 기다린다
+- (재확인으로 추가) 메인 헤더 메뉴가 배열이면 구성 중단(5.6), 푸터를 만들면 `f7676E=false`(5.6), 웹 페이지의 `back` 무시(5.5), `left` 팝업의 배경 남음(5.12), 대화상자 버튼이 새 대화상자를 닫음(5.8), 실패한 그림 대신 직전 그림(5.8)
 
 ---
 
-## 6. Flutter로 옮길 때 참고
+## 6. Flutter 구현
 
-- 웹뷰: `webview_flutter`(공식). 추가 헤더는 `loadRequest(uri, headers:)`. JS 객체는 `addJavaScriptChannel`이 `postMessage` 하나만 주므로, 페이지 시작 때 아래 셰임을 주입하면 기존 웹 페이지를 바꾸지 않아도 된다.
-  ```js
-  window.allytteAndroid = {
-    allytteCommandHandler: function (j) { AllytteBridge.postMessage(j); },
-    addressSave: function (p) { AllytteAddress.postMessage(p); }
-  };
-  ```
-  - `window.open`(onCreateWindow), 파일 선택, 다운로드, JS alert 커스텀, `setTextZoom` 같은 기능은 `webview_flutter_android`의 Android 전용 API로 확인할 것. 필요하면 해당 부분만 플랫폼 채널(Kotlin)로.
-  - `flutter_inappwebview`는 2026-09 확인 당시 AGP 9.x에서 빌드가 깨졌다.
-- 이전 로컬 시도(2026-09-16, 지금은 삭제됨)에서 겪은 빌드 문제: Windows에서 Kotlin 증분 캐시 잠김 → `kotlin.incremental=false`, 일부 AndroidX가 compileSdk 37 요구 → `android.suppressUnsupportedCompileSdk=37`, `flutter_local_notifications`는 core library desugaring 필요.
-- 비콘·NFC foreground dispatch·루팅 확인은 Flutter 플러그인보다 Kotlin 플랫폼 채널이 원본과 같게 만들기 쉽다.
-- 픽셀 단위(`f7680G`/`f7682H`)는 Flutter 논리 픽셀로 바꿀 때 `devicePixelRatio`로 나눠야 원본과 같은 크기가 된다.
+### 6.1 구조
+
+원본 화면 2개(IntroActivity, MainActivity)와 QR 화면을 Flutter 화면으로 옮겼다. Android 쪽 액티비티는 Flutter용 하나(`MainActivity.kt`)뿐이다. 원본에서 Android가 직접 그리거나 처리하던 것(시스템 대화상자, 토스트, 인텐트, 권한, NFC, 비콘, 다운로드, 파일 선택)만 Kotlin이 같은 API로 처리하고, 채널(`kr.ac.ut.mobile.flutter/native`)로 주고받는다.
+
+| 파일 | 원본 | 내용 |
+|---|---|---|
+| `lib/main.dart` | — | 시작: 인트로 → 메인 |
+| `lib/src/intro_screen.dart` | `IntroActivity` | 권한 요청, 시작 이미지, 기기 등록(5.2) |
+| `lib/src/main_screen.dart` | `MainActivity` | 명령 처리기, 메인·팝업 구성, 메뉴·버튼, 대화상자, 로딩, 뒤로가기, 센서·NFC·비콘·QR·GPS 연결. 메서드 옆 주석이 원본 이름(`x0`, `E0`, `i1`, …) |
+| `lib/src/web_entry.dart` | `X0()`/`Z0()`/`onCreateWindow` | 웹뷰 하나(메인·팝업·자식·손자) 만들기 |
+| `lib/src/popup_animation.dart` | `res/anim`, 애니메이션 리스너 | 옛 Android 애니메이션 규칙(5.12) |
+| `lib/src/legacy_widgets.dart` | 레이아웃 XML, `RoundedWebView` | 버튼, 로딩 표시, 웹뷰 모서리, alert·dialog·nfc 대화상자 |
+| `lib/src/legacy_json.dart` | `org.json` | 같은 예외 규칙, Android `toString()` 직렬화 |
+| `lib/src/android_color.dart` | `Color.parseColor` | |
+| `lib/src/allytte_http.dart` | `i2.a`, 내려받기 스레드 | POST 도우미(5.3), 아이콘·시작 이미지 내려받기 |
+| `lib/src/device_prefs.dart` | SharedPreferences `"device"` | |
+| `lib/src/qr_scan_screen.dart` | `ZxingActivity` | 같은 배치, 인식은 mobile_scanner(ML Kit) |
+| `lib/src/native_bridge.dart` | — | Kotlin 채널 |
+| `android/.../MainActivity.kt` | 두 액티비티의 Android 부분 | 권한, 시스템 대화상자(권한 안내·루팅), 토스트, 인텐트, NFC foreground dispatch·태그 읽기, GPS, AltBeacon, 파일 선택 결과 |
+| `android/.../WebViewBridge.kt` | WebView 설정·클라이언트 | 원본 설정값, `allytteAndroid` 객체, 링크 처리(sms/tel/mailto/intent/마켓), 다운로드, `window.open`·`window.close`, JS 알림창, 파일 선택 |
+
+### 6.2 웹뷰
+
+- `webview_flutter`(공식)로 웹뷰를 만들고, 플러그인이 제공하는 `WebViewFlutterAndroidExternalApi`로 네이티브 WebView를 받아 원본과 같은 설정과 객체를 붙인다. 그래서 웹 페이지는 원본처럼 `allytteAndroid.allytteCommandHandler(json)`을 그대로 부른다(셰임 주입 불필요).
+- 플러그인이 생성자에서 바꾸는 기본값(확대 버튼, overview 모드, 여러 창)은 Android 기본값으로 되돌린 뒤 원본 값을 입힌다.
+- 링크 처리·새 창·JS 알림창은 플러그인 클라이언트를 감싸서 처리하고, 페이지 시작·끝 이벤트는 그대로 Dart로 넘어가 로딩 표시를 켜고 끈다.
+- `window.open`은 Kotlin이 요청을 붙잡아 두고 Dart가 새 웹뷰를 만든 뒤 연결한다. 자식·손자 창은 팝업 웹뷰와 같은 틀에 원본 순서대로 쌓인다.
+- 주소 불러오기는 원본처럼 네이티브 `loadUrl(url, 헤더)`에 문자열을 그대로 넘긴다.
+- `flutter_inappwebview`는 2024년 이후 출시가 없고 AGP 9에서 빌드가 깨져서 쓰지 않았다.
+
+### 6.3 화면 모양
+
+- 원본 테마가 `Theme.AppCompat.Light`라서 Kotlin이 띄우는 시스템 대화상자(JS 알림, 권한 안내, 루팅)는 AppCompat 테마로 원본과 같은 모양이다. 버튼 색은 colorAccent(#03dac5).
+- Flutter가 그리는 부분(헤더·푸터 버튼, alert·dialog·nfc 대화상자, 로딩 표시)은 원본 XML 크기·색을 dp 그대로 옮겼다. 글꼴만 다를 수 있다(삼성 시스템 글꼴 대신 Flutter 글꼴).
+- 앱 화면 크기(`Display.getSize`)는 창 크기에서 상태 표시줄과 내비게이션 바를 뺀 값으로 계산한다.
+
+### 6.4 원본과 다른 점
+
+| 항목 | 원본 | 이식 | 이유 |
+|---|---|---|---|
+| 패키지 | `kr.ac.ut.mobile` | `kr.ac.ut.mobile.flutter` | 사용자 결정 1 |
+| 버전 | 1.1.3(19) | 1.1.3(19) | 서버에 `appVersion`·User-Agent로 보내므로 같게 둠 |
+| 푸시(FCM), HCE | 있음 | 없음 | 사용자 결정 2, 3. `push_url`로 다시 여는 흐름은 남김 |
+| 앱이 예외로 종료되는 경우 | 종료 | 무시 | 사용자 결정 4를 같이 적용: NFC 레코드 3개 미만, uuid 목록 없이 끝난 비콘 검색, 처리할 앱이 없는 `tel:`/`sms:`/`mailto:` 링크, 패키지 없는 `intent://` |
+| 시작 화면 배경, 앱 아이콘 | split APK 그림 | 흰 화면, Flutter 기본 아이콘 | 그림이 없음(1장) |
+| `assets/app_icon_1024.png` → `files/allytte/intro.png` 복사 | 있음 | 없음 | 보이지 않는 이미지뷰에만 쓰여 화면 차이 없음 |
+| QR 인식 | ZXing | ML Kit(mobile_scanner) | 화면 배치·안내 글·닫기·"Cancelled"는 같음. 인식 점 표시는 없음 |
+| minSdk / targetSdk | 23 / 35 | 24 / 36 | Flutter 3.47 기본값 |
+| Android 7.x(API 24–25) | — | 링크 처리·새 창·JS 알림창 감싸기 생략 | 현재 클라이언트를 읽는 API가 8.0부터라서 |
+| 팝업 웹뷰 모서리 | 하드웨어 레이어에 지우기 | Flutter에서 잘라내기 | 같은 모양(4000px 규칙 포함) |
+
+### 6.5 참고(이전 로컬 시도)
+
+- 2026-09-16 로컬 시도(지금은 삭제됨)에서 겪은 빌드 문제: Windows에서 Kotlin 증분 캐시 잠김 → `kotlin.incremental=false`, 일부 AndroidX가 compileSdk 37 요구 → `android.suppressUnsupportedCompileSdk=37`, `flutter_local_notifications`는 core library desugaring 필요. 이번 구성(Flutter 3.47.2, AGP 9.1.0)은 클라우드 Linux에서 그런 설정 없이 빌드됐다.
+
+---
+
+## 7. 클라우드 세션 Setup script
+
+환경 설정의 Setup script에 넣으면 Flutter와 Android SDK가 설치된 상태로 세션이 시작된다(약 5분 안에 끝나면 캐시됨).
+
+```bash
+#!/bin/bash
+set -e
+# Flutter (사용자 PC와 같은 버전)
+cd /opt
+curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.2-stable.tar.xz | tar -xJ
+git config --global --add safe.directory /opt/flutter
+ln -sf /opt/flutter/bin/flutter /usr/local/bin/flutter
+ln -sf /opt/flutter/bin/dart /usr/local/bin/dart
+flutter --disable-analytics
+
+# Android SDK
+export ANDROID_HOME=/opt/android-sdk
+mkdir -p $ANDROID_HOME/cmdline-tools && cd /tmp
+ZIP=$(curl -fsSL https://dl.google.com/android/repository/repository2-3.xml | grep -o 'commandlinetools-linux-[0-9]*_latest.zip' | sort -V | tail -1)
+curl -fsSL "https://dl.google.com/android/repository/$ZIP" -o cmdtools.zip
+unzip -q cmdtools.zip && mv cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses > /dev/null || true
+$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+flutter config --android-sdk $ANDROID_HOME
+
+# Maven Central이 429를 돌려줄 때를 대비해 Google 미러로 돌림(컨테이너 안에서만)
+mkdir -p ~/.gradle/init.d
+cat > ~/.gradle/init.d/maven-central-mirror.gradle <<'EOF'
+def mirror = 'https://maven-central.storage-download.googleapis.com/maven2/'
+def rewrite = { RepositoryHandler repos ->
+    repos.withType(MavenArtifactRepository).configureEach { repo ->
+        if (repo.url.toString().startsWith('https://repo.maven.apache.org/maven2')) repo.url = mirror
+    }
+}
+beforeSettings { s ->
+    rewrite(s.pluginManagement.repositories)
+    rewrite(s.dependencyResolutionManagement.repositories)
+    rewrite(s.buildscript.repositories)
+}
+allprojects { p -> rewrite(p.buildscript.repositories); rewrite(p.repositories) }
+EOF
+```
+
+첫 `flutter build apk`는 NDK·CMake를 내려받느라 5분 남짓 걸린다.
+
+---
+
+## 8. 실기기 확인 목록 (사용자 PC, SM-F741N)
+
+패키지가 달라 원본 앱과 나란히 설치되므로, 같은 화면을 두 앱에서 번갈아 열어 비교한다.
+
+```
+flutter run          # 또는 flutter build apk --debug 후 adb install
+```
+
+1. 첫 실행: 권한 요청 6개 → 모두 허용하면 메인으로. 하나라도 거부하면 토스트 + "[…]권한을 추가해 주세요." 대화상자
+2. 메인: 헤더·하단 바의 아이콘 크기와 위치, 헤더 아래 1dp 선, 하단 바 위 회색 선
+3. 하단 바 버튼과 ≡ 메뉴: 팝업이 오른쪽에서 밀려 들어오고(0.5초), 배경을 누르거나 뒤로 키로 닫힘
+4. 팝업 모서리(가운데·아래 정렬 팝업), 팝업 헤더·푸터
+5. 로딩 중 회전 이미지, 로딩 중에는 터치와 뒤로 키가 막힘
+6. 팝업 안에서 새 창이 열리는 메뉴(통합정보시스템 학사 항목), 그 창의 뒤로가기·닫기
+7. 파일 내려받기, 파일 선택, `tel:` 링크, 외부 브라우저로 열리는 메뉴(포탈, 전자출결)
+8. 대표홈페이지 등 JS 알림창이 뜨는 화면
+9. 흔들기, NFC(태그보드), QR, 위치를 쓰는 메뉴가 있으면 그 동작
+10. 앱이 꺼진 상태·백그라운드 상태에서 NFC 태그(text/plain)를 대면 시작 화면부터 다시 진행
+11. 메인에서 뒤로 키: 푸터가 있는 화면이면 첫 번째는 반응 없음(5.6), 그다음 "'뒤로' 버튼을 한번 더 누르시면 종료됩니다." → 2초 안에 다시 누르면 종료
