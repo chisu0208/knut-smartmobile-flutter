@@ -47,3 +47,10 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // 시스템 대화상자(원본 androidx.appcompat AlertDialog)
+    implementation("androidx.appcompat:appcompat:1.7.1")
+    // 원본과 같은 비콘 라이브러리·버전(HANDOFF 5.16)
+    implementation("org.altbeacon:android-beacon-library:2.19.2")
+}

@@ -1,0 +1,437 @@
+package kr.ac.ut.mobile.flutter
+
+import android.Manifest
+import android.annotation.SuppressLint
+import android.app.DownloadManager
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.net.Uri
+import android.net.http.SslError
+import android.os.Build
+import android.os.Environment
+import android.os.Message
+import android.view.KeyEvent
+import android.view.View
+import android.webkit.ClientCertRequest
+import android.webkit.ConsoleMessage
+import android.webkit.CookieManager
+import android.webkit.DownloadListener
+import android.webkit.GeolocationPermissions
+import android.webkit.HttpAuthHandler
+import android.webkit.JavascriptInterface
+import android.webkit.JsPromptResult
+import android.webkit.JsResult
+import android.webkit.PermissionRequest
+import android.webkit.SslErrorHandler
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import io.flutter.plugins.webviewflutter.WebChromeClientProxyApi
+import io.flutter.plugins.webviewflutter.WebViewFlutterAndroidExternalApi
+import java.net.URISyntaxException
+import java.net.URLDecoder
+
+/**
+ * webview_flutter가 만든 네이티브 WebView에 원본 MainActivity의 WebView 설정을 그대로 입힌다.
+ *
+ * - kind `main`: 원본 `X0()` + 클라이언트 `i`
+ * - kind `popup`: 원본 `Z0()` + 클라이언트 `l`(크롬), `n`(링크), 다운로드 `j`
+ * - kind `child`: `window.open`으로 열린 창(크롬 `f`, 클라이언트 `g`)
+ * - kind `grandchild`: 그 창에서 다시 열린 창(크롬 `C0091f`)
+ *
+ * 페이지 시작·끝 이벤트는 플러그인 클라이언트를 거쳐 Dart로 그대로 전달된다.
+ */
+class WebViewBridge(private val activity: MainActivity) {
+    private val pendingWindows = HashMap<Int, Message>()
+    private var nextToken = 1
+
+    private fun webView(id: Long): WebView? {
+        val binding = activity.pluginBinding ?: return null
+        return WebViewFlutterAndroidExternalApi.getWebView(binding, id)
+    }
+
+    @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
+    fun install(id: Long, kind: String) {
+        val webView = webView(id) ?: return
+        val s = webView.settings
+        WebView.setWebContentsDebuggingEnabled(true)
+        // webview_flutter가 생성자에서 바꿔 둔 값을 Android 기본값으로 되돌린 뒤 원본 설정을 입힌다.
+        s.loadWithOverviewMode = false
+        s.useWideViewPort = false
+        s.builtInZoomControls = false
+        s.displayZoomControls = true
+        s.javaScriptEnabled = true
+        s.domStorageEnabled = true
+        s.textZoom = 85
+        when (kind) {
+            "main" -> {
+                s.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                @Suppress("DEPRECATION")
+                s.databaseEnabled = true
+                s.javaScriptCanOpenWindowsAutomatically = false
+                s.setSupportMultipleWindows(false)
+                webView.scrollBarStyle = View.SCROLLBARS_OUTSIDE_OVERLAY
+                webView.isScrollbarFadingEnabled = true
+                webView.addJavascriptInterface(AllytteJs(), "allytteAndroid")
+                webView.setDownloadListener(null)
+            }
+            "popup" -> {
+                s.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                @Suppress("DEPRECATION")
+                s.databaseEnabled = true
+                s.javaScriptCanOpenWindowsAutomatically = true
+                s.setSupportMultipleWindows(true)
+                webView.addJavascriptInterface(AllytteJs(), "allytteAndroid")
+                webView.setDownloadListener(downloadListener())
+            }
+            else -> {
+                s.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                s.javaScriptCanOpenWindowsAutomatically = true
+                s.setSupportMultipleWindows(true)
+                s.allowFileAccess = true
+                s.allowContentAccess = true
+                @Suppress("DEPRECATION")
+                s.allowFileAccessFromFileURLs = true
+                @Suppress("DEPRECATION")
+                s.allowUniversalAccessFromFileURLs = true
+                webView.setDownloadListener(downloadListener())
+            }
+        }
+        // 클라이언트를 감싸려면 현재 클라이언트를 읽어야 해서 Android 8.0 이상에서만 가능하다.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            webView.webViewClient = ShellWebViewClient(kind, webView.webViewClient)
+            val chrome = webView.webChromeClient
+            if (kind != "main" && chrome != null) {
+                webView.webChromeClient = ShellChromeClient(kind, chrome)
+            }
+        }
+    }
+
+    /** `onCreateWindow`에서 기다리게 해 둔 창에 Dart가 만든 WebView를 넘긴다. */
+    fun attachWindow(token: Int, id: Long) {
+        val message = pendingWindows.remove(token) ?: return
+        val webView = webView(id) ?: return
+        (message.obj as WebView.WebViewTransport).webView = webView
+        message.sendToTarget()
+    }
+
+    fun destroy(id: Long) {
+        webView(id)?.destroy()
+    }
+
+    /** 원본 `B0()`/`c1()`의 `loadUrl(url, extraHeaders)`. */
+    fun loadUrl(id: Long, url: String, headers: Map<String, String>) {
+        webView(id)?.loadUrl(url, HashMap(headers))
+    }
+
+    /** 원본처럼 `loadUrl("javascript:...")`로 실행한다. */
+    fun loadJavascriptUrl(id: Long, script: String) {
+        webView(id)?.loadUrl("javascript:$script")
+    }
+
+    /** 원본 클래스 `h`/`m`: 웹 페이지가 부르는 `allytteAndroid` 객체. */
+    inner class AllytteJs {
+        @JavascriptInterface
+        fun addressSave(phone: String) {
+            val intent = Intent(Intent.ACTION_INSERT)
+            intent.type = "vnd.android.cursor.dir/raw_contact"
+            intent.putExtra("phone", phone).putExtra("phone_type", 3)
+            runCatching { activity.startActivity(intent) }
+        }
+
+        @JavascriptInterface
+        fun allytteCommandHandler(json: String?) {
+            activity.runOnUiThread { activity.invokeDart("jsCommand", json) }
+        }
+    }
+
+    private fun startQuietly(intent: Intent) {
+        // 원본은 처리할 앱이 없으면 예외로 종료된다. 강제 종료는 재현하지 않는다.
+        try {
+            activity.startActivity(intent)
+        } catch (_: Exception) {
+        }
+    }
+
+    /** 원본 클라이언트 `i`(메인)와 `n`(팝업)의 `shouldOverrideUrlLoading`. */
+    private fun overrideUrl(kind: String, url: String): Boolean {
+        if (kind == "popup") {
+            if (url.startsWith("intent://")) {
+                try {
+                    val intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
+                    try {
+                        activity.startActivity(intent)
+                    } catch (_: ActivityNotFoundException) {
+                        val pkg = intent.getPackage()
+                        if (pkg != null && pkg != "") {
+                            startQuietly(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg")))
+                        }
+                    }
+                } catch (_: URISyntaxException) {
+                }
+                return true
+            }
+            if (url.startsWith("https://play.google.com/store/apps/details?id=") ||
+                url.startsWith("market://details?id=")
+            ) {
+                val id = Uri.parse(url).getQueryParameter("id")
+                if (id != null && id != "") {
+                    startQuietly(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$id")))
+                }
+                return true
+            }
+        }
+        if (kind == "main" || kind == "popup") {
+            if (url.startsWith("sms:")) {
+                startQuietly(Intent(Intent.ACTION_SENDTO, Uri.parse(url)))
+                return true
+            }
+            if (url.startsWith("tel:")) {
+                startQuietly(Intent(Intent.ACTION_DIAL, Uri.parse(url)))
+                return true
+            }
+            if (url.startsWith("mailto:")) {
+                startQuietly(Intent(Intent.ACTION_SENDTO, Uri.parse(url)))
+                return true
+            }
+        }
+        return false
+    }
+
+    /** 원본 `j`/`e` 다운로드 처리. */
+    private fun downloadListener() = DownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
+        try {
+            val request = DownloadManager.Request(Uri.parse(url))
+            val manager = activity.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            val parts = javaSplit(
+                URLDecoder.decode(contentDisposition, "UTF-8").replace("attachment; filename=", ""),
+                "=",
+            )
+            val fileName = parts[parts.size - 1].replace("\"", "")
+                .replace(Regex("\\p{Z}"), "_").replace(";", "")
+            request.setMimeType(mimeType)
+            request.addRequestHeader("cookie", CookieManager.getInstance().getCookie(url))
+            request.addRequestHeader("User-Agent", userAgent)
+            request.setDescription("Downloading File")
+            request.setAllowedOverMetered(true)
+            request.setAllowedOverRoaming(true)
+            request.setTitle(fileName)
+            request.setRequiresCharging(false)
+            @Suppress("DEPRECATION")
+            request.allowScanningByMediaScanner()
+            request.setAllowedOverMetered(true)
+            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+            manager.enqueue(request)
+            Toast.makeText(activity.applicationContext, "파일이 다운로드됩니다.", Toast.LENGTH_LONG).show()
+        } catch (_: Exception) {
+            val write = Manifest.permission.WRITE_EXTERNAL_STORAGE
+            if (ContextCompat.checkSelfPermission(activity, write) != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(activity.baseContext, "다운로드를 위해\n권한이 필요합니다.", Toast.LENGTH_LONG).show()
+                ActivityCompat.requestPermissions(activity, arrayOf(write), 1004)
+            }
+        }
+    }
+
+    /** 링크 처리만 원본대로 하고 나머지는 플러그인 클라이언트(Dart 이벤트)로 넘긴다. */
+    private inner class ShellWebViewClient(
+        private val kind: String,
+        private val inner: WebViewClient,
+    ) : WebViewClient() {
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            if (overrideUrl(kind, request.url.toString())) return true
+            return inner.shouldOverrideUrlLoading(view, request)
+        }
+
+        @Deprecated("Deprecated in Java")
+        override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
+            if (overrideUrl(kind, url)) return true
+            @Suppress("DEPRECATION")
+            return inner.shouldOverrideUrlLoading(view, url)
+        }
+
+        override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) =
+            inner.onPageStarted(view, url, favicon)
+
+        override fun onPageFinished(view: WebView, url: String) = inner.onPageFinished(view, url)
+
+        override fun onLoadResource(view: WebView, url: String) = inner.onLoadResource(view, url)
+
+        override fun onPageCommitVisible(view: WebView, url: String) = inner.onPageCommitVisible(view, url)
+
+        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
+            inner.shouldInterceptRequest(view, request)
+
+        override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) =
+            inner.onReceivedError(view, request, error)
+
+        @Deprecated("Deprecated in Java")
+        override fun onReceivedError(view: WebView, errorCode: Int, description: String?, failingUrl: String?) {
+            @Suppress("DEPRECATION")
+            inner.onReceivedError(view, errorCode, description, failingUrl)
+        }
+
+        override fun onReceivedHttpError(
+            view: WebView,
+            request: WebResourceRequest,
+            errorResponse: WebResourceResponse,
+        ) = inner.onReceivedHttpError(view, request, errorResponse)
+
+        override fun onFormResubmission(view: WebView, dontResend: Message, resend: Message) =
+            inner.onFormResubmission(view, dontResend, resend)
+
+        override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) =
+            inner.doUpdateVisitedHistory(view, url, isReload)
+
+        override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) =
+            inner.onReceivedSslError(view, handler, error)
+
+        override fun onReceivedClientCertRequest(view: WebView, request: ClientCertRequest) =
+            inner.onReceivedClientCertRequest(view, request)
+
+        override fun onReceivedHttpAuthRequest(view: WebView, handler: HttpAuthHandler, host: String, realm: String) =
+            inner.onReceivedHttpAuthRequest(view, handler, host, realm)
+
+        override fun shouldOverrideKeyEvent(view: WebView, event: KeyEvent): Boolean =
+            inner.shouldOverrideKeyEvent(view, event)
+
+        override fun onUnhandledKeyEvent(view: WebView, event: KeyEvent) = inner.onUnhandledKeyEvent(view, event)
+
+        override fun onScaleChanged(view: WebView, oldScale: Float, newScale: Float) =
+            inner.onScaleChanged(view, oldScale, newScale)
+
+        override fun onReceivedLoginRequest(view: WebView, realm: String, account: String?, args: String) =
+            inner.onReceivedLoginRequest(view, realm, account, args)
+    }
+
+    /**
+     * 팝업·자식·손자 창의 크롬 클라이언트. 새 창, 창 닫기, JS 알림창, 파일 선택은 원본대로 하고
+     * 나머지는 플러그인 클라이언트로 넘긴다. 플러그인이 [WebChromeClientProxyApi.SecureWebChromeClient]만
+     * 받으므로 그 클래스를 상속한다.
+     */
+    private inner class ShellChromeClient(
+        private val kind: String,
+        private val inner: WebChromeClient,
+    ) : WebChromeClientProxyApi.SecureWebChromeClient() {
+        override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
+            // 손자 창(원본 C0091f)은 새 창을 만들지 않는다.
+            if (kind == "grandchild") return false
+            val token = nextToken++
+            pendingWindows[token] = resultMsg
+            activity.invokeDart("createWindow", mapOf("parent" to kind, "token" to token))
+            return true
+        }
+
+        override fun onCloseWindow(window: WebView) {
+            if (kind == "child" || kind == "grandchild") {
+                activity.invokeDart("closeWindow", kind)
+            } else {
+                inner.onCloseWindow(window)
+            }
+        }
+
+        override fun onJsAlert(view: WebView, url: String?, message: String?, result: JsResult): Boolean {
+            activity.invokeDart("hideLoading", null)
+            AlertDialog.Builder(activity)
+                .setTitle("")
+                .setMessage(message)
+                .setOnKeyListener { _, keyCode, _ ->
+                    if (keyCode == KeyEvent.KEYCODE_BACK) result.confirm()
+                    true
+                }
+                .setPositiveButton(android.R.string.ok) { _, _ -> result.confirm() }
+                .setCancelable(false)
+                .create()
+                .show()
+            return true
+        }
+
+        override fun onJsConfirm(view: WebView, url: String?, message: String?, result: JsResult): Boolean {
+            AlertDialog.Builder(activity)
+                .setTitle("")
+                .setMessage(message)
+                .setPositiveButton(android.R.string.ok) { _, _ -> result.confirm() }
+                .setNegativeButton(android.R.string.cancel) { _, _ -> result.cancel() }
+                .create()
+                .show()
+            return true
+        }
+
+        override fun onShowFileChooser(
+            webView: WebView,
+            filePathCallback: ValueCallback<Array<Uri>>,
+            fileChooserParams: FileChooserParams,
+        ): Boolean {
+            // 손자 창(원본 C0091f)에는 파일 선택이 없다.
+            if (kind == "grandchild") return false
+            Toast.makeText(activity, "파일 선택창을 선택하였습니다.", Toast.LENGTH_SHORT).show()
+            activity.fileChooserCallback = filePathCallback
+            val intent = Intent(Intent.ACTION_GET_CONTENT)
+            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            intent.addCategory(Intent.CATEGORY_OPENABLE)
+            intent.type = "*/*"
+            @Suppress("DEPRECATION")
+            activity.startActivityForResult(Intent.createChooser(intent, "Select Picture"), MainActivity.REQUEST_FILE_CHOOSER)
+            return true
+        }
+
+        override fun onProgressChanged(view: WebView, newProgress: Int) = inner.onProgressChanged(view, newProgress)
+
+        override fun onReceivedTitle(view: WebView, title: String?) = inner.onReceivedTitle(view, title)
+
+        override fun onShowCustomView(view: View, callback: CustomViewCallback) = inner.onShowCustomView(view, callback)
+
+        override fun onHideCustomView() = inner.onHideCustomView()
+
+        override fun onJsPrompt(
+            view: WebView,
+            url: String?,
+            message: String?,
+            defaultValue: String?,
+            result: JsPromptResult,
+        ): Boolean = inner.onJsPrompt(view, url, message, defaultValue, result)
+
+        override fun onJsBeforeUnload(view: WebView, url: String?, message: String?, result: JsResult): Boolean =
+            inner.onJsBeforeUnload(view, url, message, result)
+
+        override fun onGeolocationPermissionsShowPrompt(origin: String, callback: GeolocationPermissions.Callback) =
+            inner.onGeolocationPermissionsShowPrompt(origin, callback)
+
+        override fun onGeolocationPermissionsHidePrompt() = inner.onGeolocationPermissionsHidePrompt()
+
+        override fun onPermissionRequest(request: PermissionRequest) = inner.onPermissionRequest(request)
+
+        override fun onPermissionRequestCanceled(request: PermissionRequest) =
+            inner.onPermissionRequestCanceled(request)
+
+        override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean = inner.onConsoleMessage(consoleMessage)
+
+        override fun getDefaultVideoPoster(): Bitmap? = inner.defaultVideoPoster
+
+        override fun getVideoLoadingProgressView(): View? = inner.videoLoadingProgressView
+
+        override fun getVisitedHistory(callback: ValueCallback<Array<String>>) = inner.getVisitedHistory(callback)
+
+        override fun onRequestFocus(view: WebView) = inner.onRequestFocus(view)
+    }
+
+    companion object {
+        /** Java `String.split(regex)`처럼 끝의 빈 문자열을 버린다. */
+        fun javaSplit(value: String, delimiter: String): List<String> {
+            if (!value.contains(delimiter)) return listOf(value)
+            return value.split(delimiter).dropLastWhile { it.isEmpty() }
+        }
+    }
+}
