@@ -186,6 +186,10 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
                 webViews.destroy(call.arguments<Number>()!!.toLong())
                 result.success(null)
             }
+            "clearHistory" -> {
+                webViews.clearHistory(call.arguments<Number>()!!.toLong())
+                result.success(null)
+            }
             "loadUrl" -> {
                 webViews.loadUrl(
                     call.argument<Number>("id")!!.toLong(),

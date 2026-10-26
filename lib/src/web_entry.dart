@@ -93,6 +93,10 @@ class WebEntry {
         onPageStarted: load.pageStarted,
         onPageFinished: (String url) {
           load.pageFinished(url);
+          if (entry._clearHistoryWhenDone && load.ownLoadDone) {
+            entry._clearHistoryWhenDone = false;
+            NativeBridge.clearHistory(entry.id);
+          }
           onPageFinished?.call(url);
         },
         onProgress: load.progress,
@@ -126,8 +130,17 @@ class WebEntry {
     }
   }
 
-  /// `loadUrl(url, extraHeaders)`.
-  void loadUrl(String url, Map<String, String> headers) {
+  /// 이번에 불러온 페이지가 끝나면 방문 기록을 지울지.
+  bool _clearHistoryWhenDone = false;
+
+  /// `loadUrl(url, extraHeaders)`. [clearHistoryWhenDone]이면 이 페이지가 오류 없이 끝난 뒤
+  /// 방문 기록을 지워서, 뒤로 키가 이전 페이지로 돌아가지 않는다.
+  void loadUrl(
+    String url,
+    Map<String, String> headers, {
+    bool clearHistoryWhenDone = false,
+  }) {
+    _clearHistoryWhenDone = clearHistoryWhenDone;
     _load.ownLoad(url, headers);
     NativeBridge.loadUrl(id, url, headers);
   }

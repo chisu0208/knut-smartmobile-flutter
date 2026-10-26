@@ -117,11 +117,12 @@ class _QrScanScreenState extends State<QrScanScreen> {
                     ),
                   ),
                 ),
-                // btn_qr_close: 아래 30dp, 가운데
+                // btn_qr_close: 아래 30dp, 가운데. 원본처럼 화면 끝에서 재면 내비게이션 바에
+                // 반쯤 가려져서, 개선판은 시스템 바 위에서 잰다.
                 Positioned(
                   left: 0,
                   right: 0,
-                  bottom: 30,
+                  bottom: 30 + MediaQuery.viewPaddingOf(context).bottom,
                   child: Center(
                     child: GestureDetector(
                       onTap: () => _finish(null),

@@ -143,6 +143,38 @@ class LegacyButton extends StatelessWidget {
   }
 }
 
+/// `d1(px, px, button)`: 아이콘 버튼을 넣는 정사각형 칸. 버튼은 왼쪽 위에 붙고 넘치면 잘린다.
+///
+/// 원본은 글자만 있는 버튼(대화상자 `예`·`아니오`, 글자 푸터)도 이 칸(예: 90px, Pixel 7에서
+/// 약 34dp)에 넣어서, 최소 88dp 폭 버튼의 가운데 글자가 잘렸다(`예`가 `여`로 보임). 개선판은
+/// [fitContent]면 칸 크기를 최소 크기로만 쓰고 버튼이 글자에 맞는 크기로 그려지게 둔다.
+class SquareSlot extends StatelessWidget {
+  const SquareSlot({
+    super.key,
+    required this.dimension,
+    required this.fitContent,
+    required this.child,
+  });
+
+  final double dimension;
+  final bool fitContent;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (fitContent) {
+      return ConstrainedBox(
+        constraints: BoxConstraints(minWidth: dimension, minHeight: dimension),
+        child: Center(widthFactor: 1, heightFactor: 1, child: child),
+      );
+    }
+    return SizedBox.square(
+      dimension: dimension,
+      child: Align(alignment: Alignment.topLeft, child: child),
+    );
+  }
+}
+
 class _DefaultButtonFrame extends StatelessWidget {
   const _DefaultButtonFrame({required this.child, this.onTap});
 

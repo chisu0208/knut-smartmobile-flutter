@@ -166,6 +166,10 @@ class NativeBridge {
   static Future<void> destroyWebView(int webViewId) =>
       _call<void>('destroyWebView', webViewId);
 
+  /// `WebView.clearHistory()`: 지금 페이지만 남기고 뒤로·앞으로 기록을 지운다.
+  static Future<void> clearHistory(int webViewId) =>
+      _call<void>('clearHistory', webViewId);
+
   /// 네이티브 WebView에 `loadUrl(url, extraHeaders)`. 주소 문자열을 그대로 넘긴다.
   static Future<void> loadUrl(
     int webViewId,

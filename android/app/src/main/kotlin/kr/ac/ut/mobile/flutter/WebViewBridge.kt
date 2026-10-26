@@ -108,7 +108,7 @@ class WebViewBridge(private val activity: MainActivity) {
                 s.javaScriptCanOpenWindowsAutomatically = true
                 s.setSupportMultipleWindows(true)
                 webView.addJavascriptInterface(AllytteJs(), "allytteAndroid")
-                webView.setDownloadListener(downloadListener(id))
+                webView.setDownloadListener(downloadListener(id, kind, webView))
             }
             else -> {
                 s.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
@@ -120,7 +120,7 @@ class WebViewBridge(private val activity: MainActivity) {
                 s.allowFileAccessFromFileURLs = true
                 @Suppress("DEPRECATION")
                 s.allowUniversalAccessFromFileURLs = true
-                webView.setDownloadListener(downloadListener(id))
+                webView.setDownloadListener(downloadListener(id, kind, webView))
             }
         }
         // 클라이언트를 감싸려면 현재 클라이언트를 읽어야 해서 Android 8.0 이상에서만 가능하다.
@@ -139,6 +139,10 @@ class WebViewBridge(private val activity: MainActivity) {
         val webView = webView(id) ?: return
         (message.obj as WebView.WebViewTransport).webView = webView
         message.sendToTarget()
+    }
+
+    fun clearHistory(id: Long) {
+        webView(id)?.clearHistory()
     }
 
     fun destroy(id: Long) {
@@ -247,8 +251,13 @@ class WebViewBridge(private val activity: MainActivity) {
      *
      * 원본은 실패하면 그때 저장공간 권한을 요청하고 다시 눌러야 했다. 개선판은 권한이 필요한
      * Android 9 이하에서만, 권한이 없을 때 먼저 요청하고 허용하면 이어서 내려받는다(통합본 1-1).
+     *
+     * 공지 첨부파일처럼 `window.open`으로 열린 자식·손자 창이 내려받기만 하고 보여 줄 페이지가
+     * 없으면(about:blank) 그 창을 바로 닫는다. 원본은 빈 창이 남아 팝업이 하얗게 보였고, 뒤로 키
+     * 한 번에 공지 팝업까지 닫혔다.
      */
-    private fun downloadListener(id: Long) = DownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
+    private fun downloadListener(id: Long, kind: String, webView: WebView) = DownloadListener {
+            url, userAgent, contentDisposition, mimeType, _ ->
         event(id, "download", url)
         val download = { enqueueDownload(url, userAgent, contentDisposition, mimeType) }
         val write = Manifest.permission.WRITE_EXTERNAL_STORAGE
@@ -258,6 +267,10 @@ class WebViewBridge(private val activity: MainActivity) {
             activity.requestStoragePermission(download)
         } else {
             download()
+        }
+        val page = webView.url
+        if ((kind == "child" || kind == "grandchild") && (page.isNullOrEmpty() || page == "about:blank")) {
+            activity.invokeDart("closeWindow", kind)
         }
     }
 

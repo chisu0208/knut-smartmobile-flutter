@@ -426,7 +426,7 @@ class _MainScreenState extends State<MainScreen>
         _footerVisible = true;
         await _h0(config.getJSONObject('footer'));
       }
-      _b0(url);
+      _b0(url, clearHistory: true);
     } catch (_) {}
     _refresh();
   }
@@ -593,9 +593,13 @@ class _MainScreenState extends State<MainScreen>
   }
 
   /// `B0(url)`: 저장된 `webview`가 `popup`이면 팝업, 아니면 메인 웹뷰에 공통 헤더와 함께 불러온다.
-  void _b0(String url) {
+  ///
+  /// [clearHistory]면 그 페이지가 끝난 뒤 방문 기록을 지운다(`webview`/`main` 명령). 원본은
+  /// 기록을 남겨서, 첫 실행에 권한 안내 페이지를 거쳐 메인으로 간 뒤 뒤로 키를 누르면 이전 서버
+  /// 페이지(`page/authority#1`)로 돌아가 앱 헤더 없이 다시 불러왔고, 서버가 HTTP 404를 보였다.
+  void _b0(String url, {bool clearHistory = false}) {
     final WebEntry? target = _prefs.webview == 'popup' ? _popup : _main;
-    target?.loadUrl(url, _extraHeaders);
+    target?.loadUrl(url, _extraHeaders, clearHistoryWhenDone: clearHistory);
   }
 
   /// `c1(url)`: 팝업에 불러오기. 네트워크가 없으면 불러오지 않는다.
@@ -1198,13 +1202,18 @@ class _MainScreenState extends State<MainScreen>
     await NativeBridge.attachWindow(token, entry.id);
   }
 
+  /// 자식·손자 창의 `window.close()`(Kotlin `onCloseWindow`).
+  ///
+  /// 원본은 자식 창이 닫히면 팝업도 닫았다(HANDOFF 5.11). 그래서 ECAMPUS처럼 페이지가 자식 창
+  /// (`panopto_login_popup`)을 열었다가 스스로 닫으면 팝업 전체가 열리자마자 닫혔다. 개선판은
+  /// 자식 창만 지우고 팝업은 남긴다. 내려받기만 하고 보여 줄 페이지가 없는 자식 창도 Kotlin이
+  /// 이 경로로 닫는다(첨부파일).
   Future<void> _closeWindow(String kind) async {
     if (kind == 'child') {
       _childOpen = false;
       final WebEntry? child = _child;
       if (child != null) _frame.remove(child);
       _refresh();
-      await _a0((Future<void> Function() op) => op());
     } else {
       final WebEntry? grandchild = _grandchild;
       if (grandchild != null) {
@@ -1493,9 +1502,10 @@ class _MainScreenState extends State<MainScreen>
     );
     final int? box = b.boxPx;
     if (box == null) return button;
-    return SizedBox.square(
+    return SquareSlot(
       dimension: box / _dpr,
-      child: Align(alignment: Alignment.topLeft, child: button),
+      fitContent: b.text != null && b.background is! ImageButtonBackground,
+      child: button,
     );
   }
 
