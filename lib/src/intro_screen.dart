@@ -1,17 +1,37 @@
 import 'package:flutter/material.dart';
 
 import 'allytte_http.dart';
+import 'connection_notice.dart';
 import 'device_prefs.dart';
+import 'legacy_json.dart';
 import 'legacy_widgets.dart';
 import 'native_bridge.dart';
 import 'uuid.dart';
 
 /// 원본 `IntroActivity`(HANDOFF 5.2): 권한 요청 → (저장된 시작 이미지 내려받기) → 기기 등록.
 ///
-/// 기기 등록 응답 문자열(실패면 null)을 [onFinished]로 넘긴다. 원본은 이 값을
-/// `screen_info`로 MainActivity에 넘기고 자신은 끝낸다.
+/// 기기 등록 응답 문자열을 [onFinished]로 넘긴다. 원본은 이 값을 `screen_info`로
+/// MainActivity에 넘기고 자신은 끝낸다.
+///
+/// 원본은 등록에 실패해도(응답이 null) 그대로 메인으로 넘어가 빈 화면과 `*` 버튼만 보였고,
+/// 응답을 끝없이 기다렸다. 개선판은 [registerTimeout] 안에 화면 설정을 받지 못하면 여기서
+/// 한글 안내와 다시 시도 버튼을 보인다(통합본 1-9, 1-10).
 class IntroScreen extends StatefulWidget {
   const IntroScreen({super.key, this.pushUrl, required this.onFinished});
+
+  /// 기기 등록 요청 전체(연결부터 응답 끝까지)의 시간 제한.
+  static const Duration registerTimeout = Duration(seconds: 10);
+
+  /// 기기 등록 응답이 메인 화면을 구성할 명령 목록(`{"action":[…]}`)인지.
+  static bool isScreenInfo(String? response) {
+    if (response == null || response.isEmpty) return false;
+    try {
+      JObj.parse(response).getJSONArray('action');
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// 푸시 알림으로 열린 경우의 `push_url`. 있으면 기기 등록 주소 대신 이 주소로 POST한다.
   final String? pushUrl;
@@ -25,6 +45,8 @@ class _IntroScreenState extends State<IntroScreen> {
   late final DevicePrefs _prefs;
   late final DeviceInfo _info;
   bool _finished = false;
+  bool _registering = false;
+  ConnectionProblem? _problem;
 
   @override
   void initState() {
@@ -115,6 +137,11 @@ class _IntroScreenState extends State<IntroScreen> {
 
   /// `l0()`: 기기 토큰을 준비하고 기기 등록 주소(또는 push_url)로 POST한다.
   Future<void> _register() async {
+    if (_registering || _finished || !mounted) return;
+    setState(() {
+      _registering = true;
+      _problem = null;
+    });
     String token = _prefs.deviceToken;
     if (token.isEmpty) {
       token = randomUuid().toUpperCase();
@@ -128,8 +155,27 @@ class _IntroScreenState extends State<IntroScreen> {
     final String url =
         widget.pushUrl ??
         'https://mobile.ut.ac.kr//service/api/device/save$query';
-    final String? response = await allyttePost(url, _info.versionName, token);
+    final Stopwatch watch = Stopwatch()..start();
+    final String? response = await allyttePost(
+      url,
+      _info.versionName,
+      token,
+      timeout: IntroScreen.registerTimeout,
+    );
     if (_finished || !mounted) return;
+    if (!IntroScreen.isScreenInfo(response)) {
+      final bool online = await NativeBridge.isNetworkConnected();
+      if (!mounted) return;
+      setState(() {
+        _registering = false;
+        _problem = !online
+            ? ConnectionProblem.offline
+            : watch.elapsed >= IntroScreen.registerTimeout
+            ? ConnectionProblem.slow
+            : ConnectionProblem.failed;
+      });
+      return;
+    }
     _finished = true;
     widget.onFinished(response);
   }
@@ -137,11 +183,22 @@ class _IntroScreenState extends State<IntroScreen> {
   @override
   Widget build(BuildContext context) {
     // 원본 배경 그림(drawable 0x7f0700f2)은 해상도별 split APK에만 있어 아직 없다(HANDOFF 5.2).
-    // iv_intro 이미지뷰는 gone이라 실제로 보이는 것은 배경뿐이다.
-    return const ColoredBox(
+    // iv_intro 이미지뷰는 gone이라 실제로 보이는 것은 배경뿐이다. 개선판은 등록하는 동안 로딩
+    // 표시를, 실패하면 연결 안내를 보인다.
+    final ConnectionProblem? problem = _problem;
+    return ColoredBox(
       color: windowBackground,
       child: SafeArea(
-        child: SizedBox.expand(child: ColoredBox(color: Colors.white)),
+        child: SizedBox.expand(
+          child: ColoredBox(
+            color: Colors.white,
+            child: problem != null
+                ? ConnectionNotice(problem: problem, onRetry: _register)
+                : _registering
+                ? const Center(child: LoadingSpinner())
+                : null,
+          ),
+        ),
       ),
     );
   }

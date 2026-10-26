@@ -12,34 +12,48 @@ import 'legacy_json.dart';
 ///
 /// 200이면 본문, 아니면 오류 본문을 JSON으로 읽어 `urlConnResult`를 덧붙인 문자열을 돌려준다.
 /// 어떤 실패든 null.
+///
+/// 원본은 연결 제한(3초)만 있고 응답은 끝없이 기다린다. 개선판은 [timeout]을 주면 연결부터
+/// 응답을 다 읽을 때까지 그 시간 안에 끝나지 않을 때 null을 돌려준다(통합본 1-10).
 Future<String?> allyttePost(
   String url,
   String versionName,
-  String deviceToken,
-) async {
+  String deviceToken, {
+  Duration? timeout,
+}) async {
   final HttpClient client = HttpClient()
     ..connectionTimeout = const Duration(seconds: 3);
   try {
-    final HttpClientRequest request = await client.postUrl(Uri.parse(url));
-    request.headers
-      ..set(HttpHeaders.userAgentHeader, 'allytte $versionName')
-      ..set('allytte-device-token', deviceToken)
-      ..set('allytte-device-platform', 'android')
-      // Android HttpURLConnection(OkHttp)이 POST에 붙이는 기본값.
-      ..set(HttpHeaders.contentTypeHeader, 'application/x-www-form-urlencoded');
-    request.contentLength = 0;
-    final HttpClientResponse response = await request.close();
-    final String text = await response.transform(utf8.decoder).join();
-    // BufferedReader.readLine()으로 이어 붙이므로 줄바꿈 문자가 모두 빠진다.
-    final String body = text.replaceAll('\r', '').replaceAll('\n', '');
-    final JObj json = JObj.parse(body);
-    json.map['urlConnResult'] = response.statusCode;
-    return json.toString();
+    final Future<String> result = _post(client, url, versionName, deviceToken);
+    return await (timeout == null ? result : result.timeout(timeout));
   } catch (_) {
     return null;
   } finally {
     client.close(force: true);
   }
+}
+
+Future<String> _post(
+  HttpClient client,
+  String url,
+  String versionName,
+  String deviceToken,
+) async {
+  final HttpClientRequest request = await client.postUrl(Uri.parse(url));
+  request.headers
+    ..set(HttpHeaders.userAgentHeader, 'allytte $versionName')
+    ..set('allytte-device-token', deviceToken)
+    ..set('allytte-device-platform', 'android')
+    // Android HttpURLConnection(OkHttp)이 POST에 붙이는 기본값.
+    ..set(HttpHeaders.contentTypeHeader, 'application/x-www-form-urlencoded');
+  request.contentLength = 0;
+  final HttpClientResponse response = await request.close();
+  final String text = await response.transform(utf8.decoder).join();
+  // BufferedReader.readLine()으로 이어 붙이므로 줄바꿈 문자가 모두 빠진다.
+  final String body = text.replaceAll('\r', '').replaceAll('\n', '');
+  final JObj json = JObj.parse(body);
+  json.map['urlConnResult'] = response.statusCode;
+  return json.toString();
 }
 
 /// 메뉴 아이콘·헤더 배경을 내려받는 스레드(`d`/`e`)의 결과.

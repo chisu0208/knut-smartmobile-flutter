@@ -44,6 +44,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # 시간 제한·지연 안내 테스트(test/connection_test.dart). flutter_test가 이미 쓰는 버전
+  fake_async: any
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

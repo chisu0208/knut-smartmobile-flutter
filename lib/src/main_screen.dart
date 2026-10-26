@@ -9,6 +9,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 
 import 'allytte_http.dart';
 import 'android_color.dart';
+import 'connection_notice.dart';
 import 'device_prefs.dart';
 import 'intro_screen.dart';
 import 'legacy_json.dart';
@@ -134,8 +135,7 @@ class _MainScreenState extends State<MainScreen>
   ); // f7681G0
   List<_MenuButton> _popupFooterItems = <_MenuButton>[];
 
-  // ---- 대화상자·로딩 ----
-  bool _loading = false; // f7833u
+  // ---- 대화상자 ----
   _AppDialog? _dialog; // f7832t
 
   // ---- 명령 처리 ----
@@ -165,7 +165,11 @@ class _MainScreenState extends State<MainScreen>
       'closeWindow',
       (MethodCall call) async => _closeWindow(call.arguments as String),
     );
-    NativeBridge.on('hideLoading', (MethodCall call) async => _hideLoading());
+    NativeBridge.on(
+      'webEvent',
+      (MethodCall call) async =>
+          WebEntry.handleNativeEvent(call.arguments as Map<Object?, Object?>),
+    );
     NativeBridge.on(
       'nfcTag',
       (MethodCall call) async => _onNfcTag(call.arguments as String),
@@ -200,11 +204,7 @@ class _MainScreenState extends State<MainScreen>
     _prefs = await DevicePrefs.instance();
     _info = await NativeBridge.deviceInfo();
     _prefs.webview = 'main';
-    _main = await WebEntry.create(
-      'main',
-      onPageStarted: (_) => _showLoading(),
-      onPageFinished: (_) => _hideLoading(),
-    );
+    _main = await WebEntry.create('main', onChanged: _refresh);
     if (!mounted) return;
     setState(() => _ready = true);
     if (await NativeBridge.nfcState() == 'none') {
@@ -225,7 +225,7 @@ class _MainScreenState extends State<MainScreen>
       'jsCommand',
       'createWindow',
       'closeWindow',
-      'hideLoading',
+      'webEvent',
       'nfcTag',
       'relaunchIntro',
     ]) {
@@ -645,10 +645,13 @@ class _MainScreenState extends State<MainScreen>
     target?.loadUrl(url, _extraHeaders);
   }
 
-  /// `c1(url)`: 팝업에 불러오기. 네트워크가 없으면 알림만.
+  /// `c1(url)`: 팝업에 불러오기. 네트워크가 없으면 불러오지 않는다.
+  ///
+  /// 원본은 이때 `네트워크가 연결되어 있지 않습니다.` 알림만 띄워 팝업이 빈 채로 남았다.
+  /// 개선판은 팝업 안에 연결 안내와 다시 시도 버튼을 보인다(통합본 1-9).
   Future<void> _c1(String url) async {
     if (!await NativeBridge.isNetworkConnected()) {
-      await _q0('네트워크가 연결되어 있지 않습니다.');
+      _popup?.showOffline(url, _extraHeaders);
       return;
     }
     _popup?.loadUrl(url, _extraHeaders);
@@ -786,11 +789,7 @@ class _MainScreenState extends State<MainScreen>
   Future<void> _z0() async {
     final WebEntry? old = _popup;
     if (old != null) _frame.remove(old);
-    final WebEntry entry = await WebEntry.create(
-      'popup',
-      onPageStarted: (_) => _showLoading(),
-      onPageFinished: (_) => _hideLoading(),
-    );
+    final WebEntry entry = await WebEntry.create('popup', onChanged: _refresh);
     _popup = entry;
     _frame.add(entry);
   }
@@ -960,14 +959,21 @@ class _MainScreenState extends State<MainScreen>
   // 대화상자와 로딩
   // ======================================================================
 
-  /// `b0()`
-  void _showLoading() {
-    if (!_loading && mounted) setState(() => _loading = true);
+  /// 로딩 표시(원본 `b0()`/`S()`, Dialog `f7833u`): 보이는 웹뷰 가운데 본문을 불러오는 중이고
+  /// 아직 새 화면이 그려지지 않은 것이 있으면 켠다. 연결 안내가 떠 있으면 그 안내가 대신한다.
+  bool get _loading {
+    bool loading(WebEntry? e) => e != null && e.busy && e.problem == null;
+    return loading(_main) || (_bgDrawn && _frame.any(loading));
   }
 
-  /// `S()`
-  void _hideLoading() {
-    if (_loading && mounted) setState(() => _loading = false);
+  /// 팝업 연결 안내의 `닫기`: 뒤로 키로 팝업을 닫을 때와 같다.
+  void _closePopupFromNotice() {
+    _queue = _queue
+        .then((_) async {
+          await _a0((Future<void> Function() op) => op());
+          _mainOwner = true;
+        })
+        .catchError((Object _) {});
   }
 
   void _cancelDialog() {
@@ -1184,13 +1190,12 @@ class _MainScreenState extends State<MainScreen>
     }
     final WebEntry entry = await WebEntry.create(
       isChild ? 'child' : 'grandchild',
-      onPageStarted: (_) => _showLoading(),
+      onChanged: _refresh,
       onPageFinished: (String url) {
         // 자식 창에서 통합정보시스템 첫 화면이 끝나면 뒤로가기(원본 그대로).
         if (isChild && url == 'https://tis.ut.ac.kr/main.do') {
           _queue = _queue.then((_) => _y0()).catchError((Object _) {});
         }
-        _hideLoading();
       },
     );
     if (isChild) {
@@ -1268,8 +1273,9 @@ class _MainScreenState extends State<MainScreen>
   }
 
   void _onBackPressed() {
-    // 로딩 표시와 대화상자는 취소할 수 없는 창이라 뒤로 키를 먹는다.
-    if (_loading || _dialog != null) return;
+    // 대화상자는 취소할 수 없는 창이라 뒤로 키를 먹는다. 원본은 로딩 표시도 뒤로 키를 먹었지만
+    // 개선판의 로딩 표시는 입력을 막지 않는다(통합본 3-31).
+    if (_dialog != null) return;
     _queue = _queue.then((_) => _y0()).catchError((Object _) {});
   }
 
@@ -1375,7 +1381,7 @@ class _MainScreenState extends State<MainScreen>
         Expanded(
           child: ColoredBox(
             color: _white,
-            child: _ready && _main != null ? _main!.view : null,
+            child: _ready && _main != null ? _withNotice(_main!) : null,
           ),
         ),
         if (_footerVisible) ...<Widget>[
@@ -1543,7 +1549,24 @@ class _MainScreenState extends State<MainScreen>
         bottomLeft: entry.bottomLeft,
         devicePixelRatio: _dpr,
       ),
-      child: entry.view,
+      child: _withNotice(entry, onClose: _closePopupFromNotice),
+    );
+  }
+
+  /// 웹뷰 위에 연결 안내(통합본 1-9, 6-10). 웹뷰는 계속 붙여 둔다.
+  Widget _withNotice(WebEntry entry, {VoidCallback? onClose}) {
+    final ConnectionProblem? problem = entry.problem;
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        entry.view,
+        if (problem != null)
+          ConnectionNotice(
+            problem: problem,
+            onRetry: entry.retry,
+            onClose: onClose,
+          ),
+      ],
     );
   }
 
@@ -1615,13 +1638,14 @@ class _MainScreenState extends State<MainScreen>
   }
 }
 
-/// 로딩 표시 창: 화면 전체 터치를 막고 가운데에 회전 이미지.
+/// 로딩 표시: 가운데에 회전 이미지. 원본은 화면 전체를 덮는 취소 불가 창이라 로딩 중에는
+/// 아무것도 누를 수 없었다. 개선판은 터치를 그대로 아래로 넘긴다(통합본 3-31).
 class _LoadingLayer extends StatelessWidget {
   const _LoadingLayer();
 
   @override
   Widget build(BuildContext context) {
-    return const AbsorbPointer(
+    return const IgnorePointer(
       child: SafeArea(child: Center(child: LoadingSpinner())),
     );
   }

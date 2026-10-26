@@ -51,7 +51,8 @@ import java.net.URLDecoder
  * - kind `child`: `window.open`으로 열린 창(크롬 `f`, 클라이언트 `g`)
  * - kind `grandchild`: 그 창에서 다시 열린 창(크롬 `C0091f`)
  *
- * 페이지 시작·끝 이벤트는 플러그인 클라이언트를 거쳐 Dart로 그대로 전달된다.
+ * 페이지 시작·끝 이벤트는 플러그인 클라이언트를 거쳐 Dart로 그대로 전달된다. 개선판은 로딩 표시와
+ * 연결 안내(통합본 3-31, 1-9, 6-10)를 위해 플러그인이 넘기지 않는 이벤트를 `webEvent`로 더 보낸다.
  */
 class WebViewBridge(private val activity: MainActivity) {
     private val pendingWindows = HashMap<Int, Message>()
@@ -85,7 +86,8 @@ class WebViewBridge(private val activity: MainActivity) {
                 webView.scrollBarStyle = View.SCROLLBARS_OUTSIDE_OVERLAY
                 webView.isScrollbarFadingEnabled = true
                 webView.addJavascriptInterface(AllytteJs(), "allytteAndroid")
-                webView.setDownloadListener(null)
+                // 원본 메인 웹뷰는 내려받지 않는다. 이동이 내려받기로 끝났다는 것만 알린다.
+                webView.setDownloadListener { url, _, _, _, _ -> event(id, "download", url) }
             }
             "popup" -> {
                 s.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
@@ -94,7 +96,7 @@ class WebViewBridge(private val activity: MainActivity) {
                 s.javaScriptCanOpenWindowsAutomatically = true
                 s.setSupportMultipleWindows(true)
                 webView.addJavascriptInterface(AllytteJs(), "allytteAndroid")
-                webView.setDownloadListener(downloadListener())
+                webView.setDownloadListener(downloadListener(id))
             }
             else -> {
                 s.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
@@ -106,12 +108,12 @@ class WebViewBridge(private val activity: MainActivity) {
                 s.allowFileAccessFromFileURLs = true
                 @Suppress("DEPRECATION")
                 s.allowUniversalAccessFromFileURLs = true
-                webView.setDownloadListener(downloadListener())
+                webView.setDownloadListener(downloadListener(id))
             }
         }
         // 클라이언트를 감싸려면 현재 클라이언트를 읽어야 해서 Android 8.0 이상에서만 가능하다.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            webView.webViewClient = ShellWebViewClient(kind, webView.webViewClient)
+            webView.webViewClient = ShellWebViewClient(id, kind, webView.webViewClient)
             val chrome = webView.webChromeClient
             if (kind != "main" && chrome != null) {
                 webView.webChromeClient = ShellChromeClient(kind, chrome)
@@ -129,6 +131,11 @@ class WebViewBridge(private val activity: MainActivity) {
 
     fun destroy(id: Long) {
         webView(id)?.destroy()
+    }
+
+    /** Dart [WebEntry]에 보내는 웹뷰 이벤트: navigate, committed, visible, download. */
+    private fun event(id: Long, type: String, url: String?) {
+        activity.invokeDart("webEvent", mapOf("id" to id, "type" to type, "url" to url))
     }
 
     /** 원본 `B0()`/`c1()`의 `loadUrl(url, extraHeaders)`. */
@@ -211,7 +218,8 @@ class WebViewBridge(private val activity: MainActivity) {
     }
 
     /** 원본 `j`/`e` 다운로드 처리. */
-    private fun downloadListener() = DownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
+    private fun downloadListener(id: Long) = DownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
+        event(id, "download", url)
         try {
             val request = DownloadManager.Request(Uri.parse(url))
             val manager = activity.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
@@ -245,14 +253,20 @@ class WebViewBridge(private val activity: MainActivity) {
         }
     }
 
-    /** 링크 처리만 원본대로 하고 나머지는 플러그인 클라이언트(Dart 이벤트)로 넘긴다. */
+    /**
+     * 링크 처리만 원본대로 하고 나머지는 플러그인 클라이언트(Dart 이벤트)로 넘긴다.
+     * 본문 이동 시작(navigate), 방문 기록 갱신(committed), 첫 화면(visible)은 따로 알린다.
+     */
     private inner class ShellWebViewClient(
+        private val id: Long,
         private val kind: String,
         private val inner: WebViewClient,
     ) : WebViewClient() {
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             if (overrideUrl(kind, request.url.toString())) return true
-            return inner.shouldOverrideUrlLoading(view, request)
+            val handled = inner.shouldOverrideUrlLoading(view, request)
+            if (!handled && request.isForMainFrame) event(id, "navigate", request.url.toString())
+            return handled
         }
 
         @Deprecated("Deprecated in Java")
@@ -269,7 +283,10 @@ class WebViewBridge(private val activity: MainActivity) {
 
         override fun onLoadResource(view: WebView, url: String) = inner.onLoadResource(view, url)
 
-        override fun onPageCommitVisible(view: WebView, url: String) = inner.onPageCommitVisible(view, url)
+        override fun onPageCommitVisible(view: WebView, url: String) {
+            inner.onPageCommitVisible(view, url)
+            event(id, "visible", url)
+        }
 
         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
             inner.shouldInterceptRequest(view, request)
@@ -292,8 +309,10 @@ class WebViewBridge(private val activity: MainActivity) {
         override fun onFormResubmission(view: WebView, dontResend: Message, resend: Message) =
             inner.onFormResubmission(view, dontResend, resend)
 
-        override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) =
+        override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
             inner.doUpdateVisitedHistory(view, url, isReload)
+            event(id, "committed", url)
+        }
 
         override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) =
             inner.onReceivedSslError(view, handler, error)
@@ -343,7 +362,7 @@ class WebViewBridge(private val activity: MainActivity) {
         }
 
         override fun onJsAlert(view: WebView, url: String?, message: String?, result: JsResult): Boolean {
-            activity.invokeDart("hideLoading", null)
+            // 원본은 로딩 표시(입력을 막는 창)를 먼저 걷었다. 개선판의 로딩 표시는 입력을 막지 않는다.
             AlertDialog.Builder(activity)
                 .setTitle("")
                 .setMessage(message)
