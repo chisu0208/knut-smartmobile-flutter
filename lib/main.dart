@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'src/intro_screen.dart';
+import 'src/legacy_widgets.dart';
 import 'src/main_screen.dart';
 import 'src/native_bridge.dart';
 
@@ -33,6 +34,7 @@ class SmartMobileApp extends StatelessWidget {
         colorSchemeSeed: const Color(0xFF006BD0),
         useMaterial3: false,
       ),
+      builder: legacyAppBuilder,
       home: Builder(
         builder: (BuildContext context) => IntroScreen(
           pushUrl: pushUrl,

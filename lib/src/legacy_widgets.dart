@@ -7,6 +7,24 @@ import 'package:flutter/material.dart';
 /// 원본 테마(Theme.AppCompat.Light)의 창 배경색.
 const Color windowBackground = Color(0xFFFAFAFA);
 
+/// Android TextView 기본값: 밑줄 없음, 시스템 기본 글꼴, 보통 굵기, textColorPrimary.
+///
+/// 화면 맨 위에 `Material`이 없으면 Flutter 글자는 `MaterialApp`의 오류 표시용
+/// 스타일(노란 이중 밑줄, monospace, w900)을 물려받는다. 크기·색은 각 `Text`가 정한다.
+const TextStyle legacyTextStyle = TextStyle(
+  color: Color(0xDE000000),
+  fontSize: 14,
+  fontWeight: FontWeight.w400,
+  decoration: TextDecoration.none,
+);
+
+/// `MaterialApp.builder`: 모든 화면(인트로, 메인, 다시 뜨는 인트로, QR)에 [legacyTextStyle]을 깐다.
+Widget legacyAppBuilder(BuildContext context, Widget? child) =>
+    DefaultTextStyle(
+      style: legacyTextStyle,
+      child: child ?? const SizedBox.shrink(),
+    );
+
 /// GradientDrawable(헤더·푸터 배경)의 색, 테두리, 모서리.
 class GradientBox {
   GradientBox({required this.color, this.radius = BorderRadius.zero});

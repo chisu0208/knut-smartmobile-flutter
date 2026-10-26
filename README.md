@@ -9,6 +9,7 @@
 ## 실행
 
 Flutter 3.47.2, Android 전용입니다.
+Windows에서는 `C:\dev\knut-smartmobile-flutter`처럼 한글·공백이 없는 C 드라이브 영문 경로에 clone하세요(한글 경로는 분석·빌드 실패, `subst` 드라이브는 Kotlin 컴파일 실패. HANDOFF.md 2장).
 
 ```bash
 flutter pub get
