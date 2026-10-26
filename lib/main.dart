@@ -5,10 +5,11 @@ import 'src/intro_screen.dart';
 import 'src/main_screen.dart';
 import 'src/native_bridge.dart';
 
-/// 한국교통대학교 스마트모바일 1.1.3(Android)의 Flutter 이식.
+/// 한국교통대학교 스마트모바일 1.1.3(Android)의 Flutter 개선판.
 ///
 /// 원본처럼 시작 화면(IntroActivity)에서 기기를 등록하고, 받은 화면 설정으로 메인 화면
-/// (MainActivity)을 띄운다. 화면 내용은 학교 웹 페이지다(HANDOFF.md).
+/// (MainActivity)을 띄운다. 화면 내용은 학교 웹 페이지다(HANDOFF.md). 원본·이식판과 달라진
+/// 동작은 IMPROVEMENTS.md에 있다.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations(<DeviceOrientation>[
@@ -39,7 +40,7 @@ class SmartMobileApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '한국교통대학교 스마트모바일',
+      title: '스마트모바일 개선판',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.light,
       theme: theme,

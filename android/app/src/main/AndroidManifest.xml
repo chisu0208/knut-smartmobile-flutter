@@ -39,9 +39,10 @@
     <uses-feature android:name="android.hardware.wifi" android:required="false"/>
 
     <application
-        android:label="한국교통대학교 스마트모바일"
+        android:label="스마트모바일 개선판"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:allowBackup="false"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
