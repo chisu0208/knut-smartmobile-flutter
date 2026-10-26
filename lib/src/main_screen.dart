@@ -1,11 +1,9 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
-import 'package:sensors_plus/sensors_plus.dart';
 
 import 'allytte_http.dart';
 import 'android_color.dart';
@@ -64,7 +62,7 @@ class _AppDialog {
 }
 
 class _MainScreenState extends State<MainScreen>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver
+    with SingleTickerProviderStateMixin
     implements FullscreenHost {
   late DevicePrefs _prefs;
   late DeviceInfo _info;
@@ -91,7 +89,6 @@ class _MainScreenState extends State<MainScreen>
   bool _mainOwner = true; // f7676E
   bool _childOpen = false; // f7717a0
   bool _grandchildOpen = false; // f7718b0
-  bool _gestureOk = false; // f7724h0
   String? _nfcUrl; // f7722f0
   String? _resultUrl; // f7723g0 (QR·비콘 결과 전송 주소)
   int _backPressedAt = 0; // f7709U0
@@ -147,16 +144,9 @@ class _MainScreenState extends State<MainScreen>
   // ---- 명령 처리 ----
   Future<void> _queue = Future<void>.value();
 
-  // ---- 센서 ----
-  StreamSubscription<AccelerometerEvent>? _accelerometer;
-  int _lastShakeAt = 0; // f7737u0
-  bool _resumed = true;
-  bool _covered = false;
-
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     NativeBridge.on(
       'jsCommand',
       (MethodCall call) async =>
@@ -221,7 +211,6 @@ class _MainScreenState extends State<MainScreen>
       NativeBridge.toast('NFC를 지원하지 않는 단말기입니다.');
     }
     await NativeBridge.setMainActive(true);
-    _updateSensor();
     // Y0(screen_info)
     _loadTokens();
     await _enqueue(widget.screenInfo, fromBridge: false);
@@ -230,7 +219,6 @@ class _MainScreenState extends State<MainScreen>
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     for (final String m in <String>[
       'jsCommand',
       'createWindow',
@@ -242,43 +230,7 @@ class _MainScreenState extends State<MainScreen>
       NativeBridge.off(m);
     }
     _ticker.dispose();
-    _accelerometer?.cancel();
     super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    _resumed = state == AppLifecycleState.resumed;
-    _updateSensor();
-  }
-
-  /// onResume/onPause의 센서 등록·해제. 다른 화면(QR, 인트로)이 위에 있을 때도 해제된다.
-  void _updateSensor() {
-    final bool active = _ready && _resumed && !_covered;
-    if (active && _accelerometer == null) {
-      _accelerometer = accelerometerEventStream(
-        samplingPeriod: SensorInterval.normalInterval,
-      ).listen(_onAccelerometer);
-    } else if (!active && _accelerometer != null) {
-      _accelerometer!.cancel();
-      _accelerometer = null;
-    }
-  }
-
-  /// `onSensorChanged`: 2.7g를 넘고 직전 감지에서 500ms 지났으면 흔들기 1회.
-  void _onAccelerometer(AccelerometerEvent e) {
-    final double x = e.x / 9.80665, y = e.y / 9.80665, z = e.z / 9.80665;
-    if (math.sqrt(x * x + y * y + z * z) > 2.7) {
-      final int now = DateTime.now().millisecondsSinceEpoch;
-      if (_lastShakeAt + 500 > now) return;
-      _lastShakeAt = now;
-      // S0()
-      if (_gestureOk) {
-        _post(
-          'https://mobile.ut.ac.kr//service/api/device/gesture/shake?value=',
-        );
-      }
-    }
   }
 
   /// `P()` + `Y0()`의 토큰 준비.
@@ -438,7 +390,7 @@ class _MainScreenState extends State<MainScreen>
       config.getString('show');
       config.getString('align');
       final String url = config.getString('url');
-      _readGesture(config);
+      // 흔들기 설정(config.setting.gesture)은 흔들기를 없애서 읽지 않는다(통합본 6-5~6-7).
       if (config.isNull('header')) {
         _headerVisible = false;
       } else {
@@ -477,15 +429,6 @@ class _MainScreenState extends State<MainScreen>
       _b0(url);
     } catch (_) {}
     _refresh();
-  }
-
-  void _readGesture(JObj config) {
-    if (config.isNull('setting') ||
-        config.getJSONObject('setting').isNull('gesture')) {
-      _gestureOk = true;
-    } else {
-      _gestureOk = config.getJSONObject('setting').getBoolean('gesture');
-    }
   }
 
   Color _backgroundColor(String bgColor) {
@@ -686,7 +629,6 @@ class _MainScreenState extends State<MainScreen>
       final String footer = !config.isNull('footer')
           ? config.getString('footer')
           : 'null';
-      _readGesture(config);
       _popupAlign = align;
       final int w80 = (_screenWidthPx * 0.8).truncate();
       final int h80 = (_screenHeightPx * 0.8).truncate();
@@ -1368,10 +1310,8 @@ class _MainScreenState extends State<MainScreen>
   // 다른 화면(QR, 다시 뜨는 인트로)
   // ======================================================================
 
-  /// 다른 화면이 위에 있는 동안 원본 MainActivity는 onPause 상태(센서·NFC 해제).
+  /// 다른 화면이 위에 있는 동안 원본 MainActivity는 onPause 상태(NFC 해제).
   Future<T?> _openCovering<T>(Widget screen) async {
-    _covered = true;
-    _updateSensor();
     final NavigatorState navigator = Navigator.of(context);
     await NativeBridge.setMainActive(false);
     final T? result = await navigator.push<T>(
@@ -1381,8 +1321,6 @@ class _MainScreenState extends State<MainScreen>
         reverseTransitionDuration: Duration.zero,
       ),
     );
-    _covered = false;
-    _updateSensor();
     await NativeBridge.setMainActive(true);
     return result;
   }
