@@ -23,16 +23,27 @@ class SmartMobileApp extends StatelessWidget {
 
   final String? pushUrl;
 
+  static final ThemeData theme = ThemeData(
+    colorSchemeSeed: const Color(0xFF006BD0),
+    useMaterial3: false,
+  );
+
+  /// 모든 화면(인트로, 메인, QR, 다시 뜨는 인트로)을 감싼다.
+  ///
+  /// `MaterialApp`은 `Material` 밖의 글자에 오류 표시용 스타일(노란 이중 밑줄, monospace,
+  /// w900)을 물려준다. 원본 TextView처럼 밑줄 없는 시스템 글꼴·보통 굵기를 기본으로 준다.
+  /// 투명 Material이라 색, 터치, 배치는 바뀌지 않는다.
+  static Widget wrapScreens(BuildContext context, Widget? child) =>
+      Material(type: MaterialType.transparency, child: child);
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: '한국교통대학교 스마트모바일',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.light,
-      theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF006BD0),
-        useMaterial3: false,
-      ),
+      theme: theme,
+      builder: wrapScreens,
       home: Builder(
         builder: (BuildContext context) => IntroScreen(
           pushUrl: pushUrl,
