@@ -438,6 +438,8 @@ class WebViewBridge(private val activity: MainActivity) {
                 .setMessage(message)
                 .setPositiveButton("확인") { _, _ -> result.confirm() }
                 .setNegativeButton("취소") { _, _ -> result.cancel() }
+                // 원본은 뒤로 키·바깥 터치로 닫으면 페이지에 답하지 않아, 페이지가 답을 기다린 채 멈출 수 있었다.
+                .setOnCancelListener { result.cancel() }
                 .create()
                 .show()
             return true
