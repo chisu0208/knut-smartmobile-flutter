@@ -1016,7 +1016,8 @@ class _MainScreenState extends State<MainScreen>
     if (!granted || !mounted) return;
     final String? result = await _openCovering<String>(const QrScanScreen());
     if (result == null) {
-      NativeBridge.toast('Cancelled', long: true);
+      // 원본은 영어 `Cancelled`였다(통합본 7-1).
+      NativeBridge.toast('QR 코드 읽기를 취소했습니다.');
     } else {
       _post('$_resultUrl$result');
     }
@@ -1248,7 +1249,7 @@ class _MainScreenState extends State<MainScreen>
         await NativeBridge.exitProcess();
       } else {
         _backPressedAt = DateTime.now().millisecondsSinceEpoch;
-        NativeBridge.toast("'뒤로' 버튼을 한번 더 누르시면 종료됩니다.");
+        NativeBridge.toast("'뒤로' 버튼을 한 번 더 누르면 종료됩니다."); // 통합본 7-2
       }
       return;
     }

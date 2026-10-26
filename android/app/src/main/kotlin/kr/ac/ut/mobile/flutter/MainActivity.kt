@@ -480,14 +480,18 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQUEST_FILE_CHOOSER || resultCode != RESULT_OK || data == null) return
+        if (requestCode != REQUEST_FILE_CHOOSER) return
         val callback = fileChooserCallback ?: return
-        val clip = data.clipData
-        if (clip == null) {
-            data.data?.let { callback.onReceiveValue(arrayOf(it)) }
-        } else {
-            callback.onReceiveValue(Array(clip.itemCount) { clip.getItemAt(it).uri })
+        fileChooserCallback = null
+        // 원본은 선택을 취소하면 웹뷰에 아무 답도 하지 않아, 같은 페이지에서 파일 선택이 다시 열리지
+        // 않았다. 개선판은 취소도 빈 결과로 알린다.
+        val clip = data?.clipData
+        val uris = when {
+            resultCode != RESULT_OK || data == null -> null
+            clip != null -> Array(clip.itemCount) { clip.getItemAt(it).uri }
+            else -> data.data?.let { arrayOf(it) }
         }
+        callback.onReceiveValue(uris)
     }
 
     /** 휴대폰 글자 크기 설정을 바꾸면 웹 글자 크기도 따라간다(통합본 5-1). 매니페스트 configChanges에 fontScale이 있다. */

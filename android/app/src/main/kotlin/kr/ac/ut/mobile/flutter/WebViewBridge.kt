@@ -274,7 +274,7 @@ class WebViewBridge(private val activity: MainActivity) {
             request.setMimeType(mimeType)
             request.addRequestHeader("cookie", CookieManager.getInstance().getCookie(url))
             request.addRequestHeader("User-Agent", userAgent)
-            request.setDescription("Downloading File")
+            request.setDescription("파일을 내려받는 중입니다") // 원본 "Downloading File"(통합본 7-1)
             request.setAllowedOverMetered(true)
             request.setAllowedOverRoaming(true)
             request.setTitle(fileName)
@@ -412,7 +412,7 @@ class WebViewBridge(private val activity: MainActivity) {
                     if (keyCode == KeyEvent.KEYCODE_BACK) result.confirm()
                     true
                 }
-                .setPositiveButton(android.R.string.ok) { _, _ -> result.confirm() }
+                .setPositiveButton("확인") { _, _ -> result.confirm() }
                 .setCancelable(false)
                 .create()
                 .show()
@@ -423,8 +423,8 @@ class WebViewBridge(private val activity: MainActivity) {
             AlertDialog.Builder(activity)
                 .setTitle("")
                 .setMessage(message)
-                .setPositiveButton(android.R.string.ok) { _, _ -> result.confirm() }
-                .setNegativeButton(android.R.string.cancel) { _, _ -> result.cancel() }
+                .setPositiveButton("확인") { _, _ -> result.confirm() }
+                .setNegativeButton("취소") { _, _ -> result.cancel() }
                 .create()
                 .show()
             return true
@@ -437,14 +437,15 @@ class WebViewBridge(private val activity: MainActivity) {
         ): Boolean {
             // 손자 창(원본 C0091f)에는 파일 선택이 없다.
             if (kind == "grandchild") return false
-            Toast.makeText(activity, "파일 선택창을 선택하였습니다.", Toast.LENGTH_SHORT).show()
+            // 원본은 여기서 `파일 선택창을 선택하였습니다.` 토스트를 띄웠다. 개선판은 없앴다(통합본 7-2).
+            activity.fileChooserCallback?.onReceiveValue(null)
             activity.fileChooserCallback = filePathCallback
             val intent = Intent(Intent.ACTION_GET_CONTENT)
             intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
             intent.addCategory(Intent.CATEGORY_OPENABLE)
             intent.type = "*/*"
             @Suppress("DEPRECATION")
-            activity.startActivityForResult(Intent.createChooser(intent, "Select Picture"), MainActivity.REQUEST_FILE_CHOOSER)
+            activity.startActivityForResult(Intent.createChooser(intent, "파일 선택"), MainActivity.REQUEST_FILE_CHOOSER)
             return true
         }
 

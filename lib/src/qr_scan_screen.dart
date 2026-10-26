@@ -69,6 +69,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
                   child: MobileScanner(
                     controller: _controller,
                     scanWindow: frame,
+                    errorBuilder: _cameraError,
                     onDetect: (BarcodeCapture capture) {
                       for (final Barcode barcode in capture.barcodes) {
                         final String? value = barcode.rawValue;
@@ -139,6 +140,28 @@ class _QrScanScreenState extends State<QrScanScreen> {
       ),
     );
   }
+}
+
+/// 카메라를 열지 못했을 때의 안내. 원본(ZXing)은 영어 `Sorry, the Android camera encountered a
+/// problem…`이었다(통합본 7-1). 닫기 버튼은 그 위에 그대로 있다.
+Widget _cameraError(BuildContext context, MobileScannerException error) {
+  final String message =
+      error.errorCode == MobileScannerErrorCode.permissionDenied
+      ? '카메라 권한이 없어 QR 코드를 읽을 수 없습니다.'
+      : '카메라를 열 수 없습니다.\n다른 앱이 카메라를 쓰고 있는지 확인해 주세요.';
+  return ColoredBox(
+    color: Colors.black,
+    child: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white, fontSize: 16),
+        ),
+      ),
+    ),
+  );
 }
 
 /// ZXing `ViewfinderView`: 인식 범위 밖을 #60000000으로 가리고, 가운데에 깜빡이는 선.
