@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 원본 AppTheme(Theme.AppCompat.Light.DarkActionBar)의 색. 시스템 대화상자(AlertDialog)가
-         원본과 같은 모양·버튼 색(colorAccent)으로 보이도록 AppCompat 테마를 쓴다.
+    <!-- 시스템 대화상자(AlertDialog)는 원본처럼 AppCompat 테마를 쓴다. 원본 색(개발 도구 기본값
+         #006bd0·#3700b3·#03dac5)은 학교 대표색 하나로 바꿨다(통합본 5-10, values/colors.xml).
          원본에 야간 테마가 없으므로 values-night도 두지 않는다. -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
-        <item name="colorPrimary">#006bd0</item>
-        <item name="colorPrimaryDark">#3700b3</item>
-        <item name="colorAccent">#03dac5</item>
+        <item name="colorPrimary">@color/school</item>
+        <item name="colorPrimaryDark">@color/school</item>
+        <item name="colorAccent">@color/school</item>
     </style>
 
     <!-- 프로세스가 시작되어 Flutter 첫 화면이 그려질 때까지 -->

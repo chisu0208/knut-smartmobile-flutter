@@ -9,6 +9,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 
 import 'allytte_http.dart';
 import 'android_color.dart';
+import 'app_colors.dart';
 import 'connection_notice.dart';
 import 'device_prefs.dart';
 import 'intro_screen.dart';
@@ -991,7 +992,7 @@ class _MainScreenState extends State<MainScreen>
         () => MessagePopup(
           message: message,
           buttonText: '확인',
-          buttonColor: const Color(0xFF1B9CE8),
+          buttonColor: schoolColor, // 원본 round_button #1B9CE8(통합본 5-10)
           onPressed: _cancelDialog,
         ),
       );

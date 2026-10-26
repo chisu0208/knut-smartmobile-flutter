@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import 'app_colors.dart';
+
 /// 원본 `ZxingActivity`(HANDOFF 5.17). 읽은 내용을 돌려주고, 닫거나 뒤로 가면 null.
 ///
 /// 원본은 ZXing(journeyapps) 화면이고, 여기서는 같은 배치를 Flutter로 그리고 인식은
@@ -51,7 +53,8 @@ class _QrScanScreenState extends State<QrScanScreen> {
         statusBarColor: Colors.transparent,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xFF03DAC5), // colorAccent, 카메라가 뜨기 전
+        // 카메라가 뜨기 전. 원본은 colorAccent(#03DAC5)였다(통합본 5-10).
+        backgroundColor: Colors.black,
         body: LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
             final Size size = constraints.biggest;
@@ -90,7 +93,8 @@ class _QrScanScreenState extends State<QrScanScreen> {
                     fit: BoxFit.fill,
                   ),
                 ),
-                // zxing_status_view: 상자 위 10dp, 흰색 20dp, "QR코드"만 #03DAC5
+                // zxing_status_view: 상자 위 10dp, 흰색 20dp. 원본은 "QR코드"만 #03DAC5였다.
+                // 어두운 카메라 화면 위에서 학교색(적갈색)은 잘 안 보여 굵은 흰 글자로 강조한다(5-10).
                 Positioned(
                   left: 0,
                   right: 0,
@@ -102,7 +106,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
                           TextSpan(text: '사각 테두리 안에 '),
                           TextSpan(
                             text: 'QR코드',
-                            style: TextStyle(color: Color(0xFF03DAC5)),
+                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                           TextSpan(text: '를\n 인식해주세요.'),
                         ],
@@ -137,7 +141,8 @@ class _QrScanScreenState extends State<QrScanScreen> {
   }
 }
 
-/// ZXing `ViewfinderView`: 인식 범위 밖을 #60000000으로 가리고, 가운데에 깜빡이는 선(#1976d2).
+/// ZXing `ViewfinderView`: 인식 범위 밖을 #60000000으로 가리고, 가운데에 깜빡이는 선.
+/// 선 색은 원본 #1976d2에서 학교 대표색으로 바꿨다(통합본 5-10).
 class _Viewfinder extends StatefulWidget {
   const _Viewfinder({required this.frame});
 
@@ -201,7 +206,7 @@ class _ViewfinderPainter extends CustomPainter {
     final double middle = frame.height / 2 + frame.top;
     canvas.drawRect(
       Rect.fromLTRB(frame.left + 2, middle - 1, frame.right - 1, middle + 2),
-      Paint()..color = const Color(0xFF1976D2).withAlpha(laserAlpha),
+      Paint()..color = schoolColor.withAlpha(laserAlpha),
     );
   }
 

@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- 학교 대표색(통합본 5-10). Dart 쪽 같은 값: lib/src/app_colors.dart `schoolColor`.
+         두 값이 같은지는 test/app_colors_test.dart가 확인한다. 고른 근거는 IMPROVEMENTS.md. -->
+    <color name="school">#76161B</color>
     <!-- 적응형 아이콘 배경: 엠블럼 그림의 바탕색 -->
     <color name="ic_launcher_background">#76161B</color>
 </resources>

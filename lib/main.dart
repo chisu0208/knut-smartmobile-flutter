@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'src/app_colors.dart';
 import 'src/intro_screen.dart';
 import 'src/main_screen.dart';
 import 'src/native_bridge.dart';
@@ -24,8 +25,12 @@ class SmartMobileApp extends StatelessWidget {
 
   final String? pushUrl;
 
+  /// 강조색은 학교 대표색 하나(통합본 5-10). 원본 테마 색은 #006BD0이었다.
   static final ThemeData theme = ThemeData(
-    colorSchemeSeed: const Color(0xFF006BD0),
+    colorScheme: const ColorScheme.light(
+      primary: schoolColor,
+      secondary: schoolColor,
+    ),
     useMaterial3: false,
   );
 
