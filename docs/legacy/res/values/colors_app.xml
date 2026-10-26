@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorAccent">#03dac5</color>
+    <color name="colorGray">#dddddd</color>
+    <color name="colorPrimary">#006bd0</color>
+    <color name="colorPrimaryDark">#3700b3</color>
+    <color name="colorWhite">#ffffff</color>
+    <color name="zxing_custom_possible_result_points">#903a89cf</color>
+    <color name="zxing_custom_result_view">#b0000000</color>
+    <color name="zxing_custom_viewfinder_laser">#1976d2</color>
+    <color name="zxing_custom_viewfinder_mask">#60000000</color>
+    <color name="zxing_status_text">#ffffffff</color>
+    <color name="zxing_transparent">#00000000</color>
+</resources>

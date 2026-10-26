@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:background="@drawable/round_rectangle"
+    android:padding="25dp"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+    <LinearLayout
+        android:orientation="vertical"
+        android:background="@color/colorWhite"
+        android:paddingTop="10dp"
+        android:visibility="visible"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <TextView
+            android:textSize="18dp"
+            android:textColor="#000000"
+            android:gravity="center_horizontal"
+            android:id="@+id/tvComment"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="10dp"
+            android:text="루팅된 기기는 사용할 수 없습니다."/>
+    </LinearLayout>
+    <LinearLayout
+        android:gravity="bottom"
+        android:layout_gravity="center"
+        android:orientation="horizontal"
+        android:id="@+id/btn_container"
+        android:background="#ffffff"
+        android:paddingTop="20dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:weightSum="1">
+        <Button
+            android:textSize="18sp"
+            android:textColor="#ffffff"
+            android:id="@+id/btnOk"
+            android:background="@drawable/round_button"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/confirm"/>
+    </LinearLayout>
+</LinearLayout>

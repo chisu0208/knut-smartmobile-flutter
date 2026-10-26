@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme.NoActionBar" parent="@style/AppTheme">
+        <item name="android:statusBarColor">@android:color/primary_text_dark</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
+    <style name="CustomDialog" parent="@android:style/Theme.Dialog">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:textColor">#ffffff</item>
+        <item name="android:width">300dp</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
+</resources>

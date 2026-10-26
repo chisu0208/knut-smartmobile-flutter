@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_close">\'뒤로\' 버튼을 한번 더 누르시면 종료됩니다.</string>
+    <string name="app_name">한국교통대학교 스마트모바일</string>
+    <string name="cancel">취소</string>
+    <string name="confirm">확인</string>
+    <string name="nfc_detail">설정 화면의 NFC모드를 \'기본\' 또는 \'읽기/쓰기\'로 설정하시기 바랍니다.</string>
+    <string name="nfc_move">핸드폰을 NFC 태그보드에 가까이 대세요.</string>
+    <string name="nw_not_conn">네트워크가 연결되어 있지 않습니다.</string>
+    <string name="qr_guide">사각 테두리 안에 QR코드를\n 인식해주세요.</string>
+</resources>
