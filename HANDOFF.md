@@ -2,6 +2,7 @@
 
 > 작성: 2026-10-26, 로컬 Claude Code 세션에서 클라우드 세션으로 넘기기 위해 작성
 > 갱신: 2026-10-26, 클라우드 세션에서 1차 이식 후(1장 현재 상태, 5장 **(재확인)** 표시, 6~8장)
+> 갱신: 2026-10-26, 로컬 세션의 에뮬레이터 확인 결과와 글자 스타일 수정(1장, 2장 Windows 주의 사항, 6.3, 7장 Setup script, 8장)
 > 이 문서만 읽고 바로 이어서 작업할 수 있도록, 원본 코드를 읽으며 확인한 동작 규칙을 모두 적었다.
 
 ---
@@ -17,12 +18,47 @@
   - 교통·학식 탭, 길찾기(`mockups/`)는 **새 기능이라 이번 범위가 아니다.** UI/UX 개선점 목록도 반영하지 않는다.
 - 배경: 모바일프로그래밍 수업 4인 팀 프로젝트(기존 앱 UI/UX 개선). 이 작업은 그중 "기존 앱을 Flutter로 옮겨 놓는" 출발점이다. 마감 2026-12-15.
 
-### 현재 상태 (2026-10-26, 클라우드 세션)
+### 현재 상태
 
-- **1차 이식 완료, 실기기 확인 전.** 5장의 동작 규칙을 모두 코드로 옮겼다. 구조와 원본 대응은 6장.
-- 확인한 것: `flutter analyze` 문제 없음, 단위 테스트 13개 통과(`test/legacy_rules_test.dart`), `flutter build apk --debug` 성공(Kotlin 포함).
-- 확인 못 한 것: 실제 실행. 클라우드에는 기기·에뮬레이터가 없다. 사용자 PC에서 8장 목록으로 확인해야 한다.
+- **1차 이식 완료(2026-10-26, 클라우드 세션), 에뮬레이터 첫 확인 완료(같은 날, 로컬 세션), 실기기 확인 전.** 5장의 동작 규칙을 모두 코드로 옮겼다. 구조와 원본 대응은 6장.
+- 클라우드에서 확인하는 것: `flutter analyze` 문제 없음, 테스트 14개 통과(`test/legacy_rules_test.dart` 13개, `test/text_style_test.dart` 1개), `flutter build apk --debug` 성공(Kotlin 포함). 클라우드에는 기기·에뮬레이터가 없어서 실행 확인은 사용자 PC에서 한다(8장).
 - 원본 자료를 다시 읽으며 이 문서의 분석과 다르게 확인된 곳은 5장 해당 절에 **(재확인)**으로 고쳐 적었다. 팝업 구성 분기는 바이트코드(`dexdump`)로 다시 확인해 5.7 내용이 맞음을 확인했다.
+
+### 에뮬레이터 확인 (2026-10-26, 로컬 세션, Pixel 7 AVD, Android 17)
+
+정상 확인한 것:
+
+- 권한 6개를 요청하고, 하나라도 거부하면 토스트와 `[카메라]권한을 추가해 주세요.` 대화상자를 거쳐 설정 화면으로 간다.
+- 기기 등록 뒤 첫 실행에서는 `page/authority`(권한 안내)를 거쳐 메인으로, 두 번째 실행부터는 바로 메인으로 간다. `allytteAndroid` 연결도 동작한다.
+- 하단 바 4버튼: ≡(오른쪽 팝업, 슬라이드), ☆(아래 팝업), 👤(full 팝업). 가운데 팝업의 둥근 모서리도 규칙대로다.
+- 팝업은 배경 탭, ✕, 뒤로 키로 닫힌다. 팝업 안에서 뒤로 키를 누르면 웹 페이지가 뒤로 간다.
+- 로딩 중에는 뒤로 키가 막힌다.
+- 메인에서 뒤로 키: 첫 번째는 반응이 없고, 그다음 종료 토스트가 나오고, 2초 안에 다시 누르면 종료된다.
+- JS 알림: 메인은 기본 WebView 대화상자, 팝업은 제목 없는 AppCompat 대화상자다.
+- `alert`·`dialog` 명령이 동작하고, 대화상자 버튼이 연 새 대화상자가 함께 닫히는 원본 버릇도 그대로다.
+- `window.open` 자식 창이 열리고, 뒤로 키 → `window.close()` → 자식 창과 팝업이 함께 닫힌다.
+- `tel:` 링크는 다이얼러(DIAL)로, `browser` 명령은 Chrome으로 열린다.
+- 파일 선택은 토스트와 선택 화면이 뜬다. QR 화면은 닫으면 `Cancelled`가 나온다.
+- 크래시나 Dart 예외 로그는 없었다.
+
+원본과 비교가 필요한 것(고치지 말고 기록만):
+
+- 첫 실행에서 권한 안내 → 확인 → 메인으로 간 뒤 뒤로 키를 두 번 누르면, 메인 웹뷰가 `page/authority#1`로 돌아간다. 이때 앱 헤더 없이 다시 불러와 서버가 HTTP 404를 보여 준다.
+- QR 화면 닫기 버튼이 내비게이션 바에 반쯤 가려진다(화면 끝까지 그려짐).
+- 에뮬레이터에서는 페이지 로드가 끝난 뒤에도 몇 초 동안 웹뷰가 늦게 그려졌다.
+- `dialog` 버튼 글자가 90px 정사각형 칸에 잘린다(5.8·5.9 규칙대로).
+
+고친 것(이식 버그, 2026-10-26 클라우드 세션):
+
+- Flutter가 그리는 글자가 노란 이중 밑줄, monospace 글꼴, w900 굵기로 나왔다. 나타난 곳은 `full` 팝업 헤더 제목(서버가 보낸 `로그인`, `교내전화`), 메인·팝업 헤더와 푸터의 메뉴 버튼 글자, `alert`·`dialog` 대화상자 메시지다.
+  - 원인: 메인 화면 위에 `Material`·`Scaffold`·`DefaultTextStyle`이 없어서, 크기와 색만 정한 글자가 `MaterialApp`의 오류 표시용 기본 글자 스타일을 물려받았다. 대화상자 `확인` 버튼(`Material` 안)과 QR 안내 글(`Scaffold` 안)은 정상이었다.
+  - 수정: 모든 화면을 투명 `Material`로 감쌌다(6.3). 크기·색·배치·여백은 그대로다. **에뮬레이터·실기기에서 다시 확인할 것.**
+
+못 한 것:
+
+- 원본 APK는 split APK가 없어 에뮬레이터에 설치되지 않았다(`INSTALL_FAILED_MISSING_SPLIT`).
+- 로그인이 필요한 메뉴는 확인하지 못했다. 로그인하지 않으면 ≡ 메뉴 목록이 비어 있다.
+- NFC·비콘·GPS·흔들기·다운로드, 실기기(SM-F741N)는 확인하지 못했다.
 
 ### 사용자 결정 (2026-10-26, 클라우드 세션에서 확인)
 
@@ -34,7 +70,8 @@
 
 ### 아직 남은 것
 
-- **실기기 확인**(8장).
+- **실기기 확인**(8장). 에뮬레이터에서 못 한 것(로그인 메뉴, NFC·비콘·GPS·흔들기·다운로드)과 글자 스타일 수정도 함께 본다.
+- **원본과 비교**: 위 "원본과 비교가 필요한 것" 4가지를 원본 앱이 설치된 실기기에서 같은 동작인지 본다. 원본과 같으면 그대로 둔다.
 - **시작 화면 배경 이미지와 앱 아이콘**: 해상도별 split APK에만 있어 저장소에 없다(5.2). 사용자 폰에서 꺼내야 한다. 지금은 흰 화면과 Flutter 기본 아이콘이다.
 
 ---
@@ -45,14 +82,22 @@
 |---|---|
 | Flutter | 3.47.2 stable (`E:\flutter`), Dart 3.13.2 |
 | Android SDK | `E:\AndroidSDK` (adb: `E:\AndroidSDK\platform-tools\adb.exe`) |
+| 작업 위치 | `E:\knut-smartmobile-flutter-main\knut-smartmobile-flutter-main` (git clone, `origin/main` 추적) |
+| 에뮬레이터 | Pixel 7 AVD, Android 17 (2026-10-26 첫 확인, 1장) |
 | 시험 폰 | SM-F741N (원본 앱 설치됨). 작성 시점에는 연결 안 됨 |
 | 디컴파일러 | jadx 1.5.6 (로컬 임시 폴더, 저장소에는 없음) |
 
-클라우드 세션에서는 실기기 시험이 안 된다. `flutter analyze`, 빌드까지만 확인하고 실기기 확인은 사용자 PC에서 한다.
+개발과 수정은 클라우드 세션에서 한다. 클라우드 세션에서는 기기 시험이 안 되므로 `flutter analyze`, 테스트, 빌드까지만 확인하고 브랜치를 push한다. 사용자는 PC의 git clone에서 `git fetch` → `git checkout <브랜치>`로 받아 에뮬레이터와 실기기로 시험한다.
+
+### Windows 주의 사항 (사용자 PC에서 확인)
+
+- **영문 경로**: 한글·공백이 들어간 경로(예: `바탕 화면`)에서는 `flutter analyze`의 분석 서버가 LSP 오류로 죽는다(`dart analyze`는 된다). AGP도 non-ASCII 경로를 거부해서 빌드가 실패한다.
+- **다른 드라이브**: 프로젝트와 pub 캐시(`C:\Users\…\AppData\Local\Pub\Cache`)가 다른 드라이브에 있으면(예: 프로젝트가 E:) Kotlin 증분 컴파일이 `this and base files have different roots` 오류로 실패한다. `kotlin.incremental=false`로 해결되며, 사용자 PC는 이 설정을 `%USERPROFILE%\.gradle\gradle.properties`에 넣었다. 저장소의 `android/gradle.properties`에는 넣지 않는다.
+- **zip으로 받은 경우**: GitHub에서 zip으로 받으면 폴더가 한 겹 더 생긴다. Android Studio는 `pubspec.yaml`이 있는 폴더를 열어야 한다. 바깥 폴더를 열면 "Dart SDK is not configured"가 뜬다.
 
 ### 클라우드 세션 환경
 
-클라우드 컨테이너에는 Flutter와 Android SDK가 없어서 세션마다 설치했다. 환경 설정의 **Setup script**에 넣어 두면 다음 세션부터 캐시된다(7장 스크립트).
+환경 설정의 **Setup script**(7장)가 세션 시작 때 Flutter와 Android SDK를 설치한다.
 
 | 항목 | 값 |
 |---|---|
@@ -483,7 +528,7 @@ CoordinatorLayout (바깥 여백 1dp)
 
 | 파일 | 원본 | 내용 |
 |---|---|---|
-| `lib/main.dart` | — | 시작: 인트로 → 메인 |
+| `lib/main.dart` | — | 시작: 인트로 → 메인. 모든 화면을 투명 `Material`로 감쌈(6.3) |
 | `lib/src/intro_screen.dart` | `IntroActivity` | 권한 요청, 시작 이미지, 기기 등록(5.2) |
 | `lib/src/main_screen.dart` | `MainActivity` | 명령 처리기, 메인·팝업 구성, 메뉴·버튼, 대화상자, 로딩, 뒤로가기, 센서·NFC·비콘·QR·GPS 연결. 메서드 옆 주석이 원본 이름(`x0`, `E0`, `i1`, …) |
 | `lib/src/web_entry.dart` | `X0()`/`Z0()`/`onCreateWindow` | 웹뷰 하나(메인·팝업·자식·손자) 만들기 |
@@ -511,6 +556,7 @@ CoordinatorLayout (바깥 여백 1dp)
 
 - 원본 테마가 `Theme.AppCompat.Light`라서 Kotlin이 띄우는 시스템 대화상자(JS 알림, 권한 안내, 루팅)는 AppCompat 테마로 원본과 같은 모양이다. 버튼 색은 colorAccent(#03dac5).
 - Flutter가 그리는 부분(헤더·푸터 버튼, alert·dialog·nfc 대화상자, 로딩 표시)은 원본 XML 크기·색을 dp 그대로 옮겼다. 글꼴만 다를 수 있다(삼성 시스템 글꼴 대신 Flutter 글꼴).
+- 모든 화면은 `MaterialApp.builder`에서 투명 `Material`로 감싼다(`SmartMobileApp.wrapScreens`). 그래서 크기·색만 정한 글자도 원본 TextView처럼 밑줄 없음, 시스템 글꼴(Roboto), 굵기를 정하지 않으면 보통 굵기로 그려진다. 이전에는 메인 화면 위에 `Material`이 없어 노란 이중 밑줄·monospace·w900으로 나왔다(1장 "고친 것", 테스트 `test/text_style_test.dart`).
 - 앱 화면 크기(`Display.getSize`)는 창 크기에서 상태 표시줄과 내비게이션 바를 뺀 값으로 계산한다.
 
 ### 6.4 원본과 다른 점
@@ -530,7 +576,7 @@ CoordinatorLayout (바깥 여백 1dp)
 
 ### 6.5 참고(이전 로컬 시도)
 
-- 2026-09-16 로컬 시도(지금은 삭제됨)에서 겪은 빌드 문제: Windows에서 Kotlin 증분 캐시 잠김 → `kotlin.incremental=false`, 일부 AndroidX가 compileSdk 37 요구 → `android.suppressUnsupportedCompileSdk=37`, `flutter_local_notifications`는 core library desugaring 필요. 이번 구성(Flutter 3.47.2, AGP 9.1.0)은 클라우드 Linux에서 그런 설정 없이 빌드됐다.
+- 2026-09-16 로컬 시도(지금은 삭제됨)에서 겪은 빌드 문제: Windows에서 Kotlin 증분 캐시 잠김 → `kotlin.incremental=false`, 일부 AndroidX가 compileSdk 37 요구 → `android.suppressUnsupportedCompileSdk=37`, `flutter_local_notifications`는 core library desugaring 필요. 이번 구성(Flutter 3.47.2, AGP 9.1.0)은 클라우드 Linux에서 그런 설정 없이 빌드됐다. 사용자 Windows PC에서는 다른 드라이브 문제로 `kotlin.incremental=false`가 다시 필요했다(2장 Windows 주의 사항).
 
 ---
 
@@ -600,3 +646,4 @@ flutter run          # 또는 flutter build apk --debug 후 adb install
 9. 흔들기, NFC(태그보드), QR, 위치를 쓰는 메뉴가 있으면 그 동작
 10. 앱이 꺼진 상태·백그라운드 상태에서 NFC 태그(text/plain)를 대면 시작 화면부터 다시 진행
 11. 메인에서 뒤로 키: 푸터가 있는 화면이면 첫 번째는 반응 없음(5.6), 그다음 "'뒤로' 버튼을 한번 더 누르시면 종료됩니다." → 2초 안에 다시 누르면 종료
+12. 글자 모양: full 팝업 헤더 제목(`로그인`, `교내전화`), 헤더·푸터 버튼 글자, alert·dialog 메시지에 노란 밑줄이 없고 보통 굵기의 일반 글꼴로 나오는지(6.3). 원본 앱의 같은 화면과 비교

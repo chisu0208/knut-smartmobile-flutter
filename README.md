@@ -16,3 +16,9 @@ flutter run
 ```
 
 패키지 이름이 `kr.ac.ut.mobile.flutter`라서 원본 앱과 같은 폰에 함께 설치됩니다.
+
+Windows에서는(자세한 내용은 HANDOFF.md 2장):
+
+- 한글·공백이 없는 영문 경로에 둡니다. 한글 경로에서는 `flutter analyze`와 Android 빌드가 실패합니다.
+- Android Studio에서는 `pubspec.yaml`이 있는 폴더를 엽니다. GitHub zip은 폴더가 한 겹 더 생깁니다.
+- 프로젝트가 pub 캐시(C:)와 다른 드라이브에 있으면 `%USERPROFILE%\.gradle\gradle.properties`에 `kotlin.incremental=false`를 넣습니다.
