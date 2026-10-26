@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>교통·학식 목업</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=block" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet">
+<style>
+  /* Material 3 색 (파란 계열 seed 기준 근사값) */
+  :root {
+    --primary: #3557a8;
+    --on-primary: #ffffff;
+    --primary-container: #d9e2ff;
+    --on-primary-container: #0b2a6b;
+    --secondary-container: #dce2f9;
+    --on-secondary-container: #141b2c;
+    --tertiary-container: #fcd7fb;
+    --on-tertiary-container: #2a1230;
+    --error: #ba1a1a;
+    --surface: #faf9ff;
+    --surface-low: #f3f3fa;
+    --surface-mid: #ededf4;
+    --surface-high: #e7e8ef;
+    --on-surface: #1a1b21;
+    --on-surface-variant: #45464f;
+    --outline: #757680;
+    --outline-variant: #c5c6d0;
+    --page: #eceef3;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+    color: var(--on-surface);
+    background: var(--page);
+    word-break: keep-all;
+    -webkit-font-smoothing: antialiased;
+  }
+  .ms {
+    font-family: 'Material Symbols Rounded';
+    font-weight: normal; font-style: normal; font-size: 24px; line-height: 1;
+    letter-spacing: normal; text-transform: none; white-space: nowrap; direction: ltr;
+    display: inline-block; font-feature-settings: 'liga';
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  .ms.fill { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* 전체 배치 */
+  .board { padding: 52px 56px 40px; width: 1440px; }
+  .board h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; }
+  .board .sub { margin-top: 8px; font-size: 16px; color: var(--on-surface-variant); }
+  .row { display: flex; gap: 48px; margin-top: 36px; }
+  .cell { width: 410px; }
+  .cap { margin-top: 20px; font-size: 16px; line-height: 1.55; }
+  .cap b { font-weight: 700; }
+  .cap span { color: var(--on-surface-variant); }
+  .foot { margin-top: 32px; font-size: 13px; color: var(--on-surface-variant); line-height: 1.7; }
+
+  /* 폰 틀 */
+  .phone {
+    width: 410px; height: 864px; padding: 10px; border-radius: 52px;
+    background: #16171b; box-shadow: 0 18px 40px rgba(20, 24, 40, .22);
+  }
+  .screen {
+    width: 390px; height: 844px; border-radius: 42px; overflow: hidden;
+    background: var(--surface); display: flex; flex-direction: column; position: relative;
+  }
+  .status { height: 40px; padding: 4px 26px 0; display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 500; flex: none; }
+  .status .icons { display: flex; gap: 4px; align-items: center; }
+  .status .icons .ms { font-size: 17px; }
+  .appbar { height: 60px; display: flex; align-items: center; padding: 0 20px; flex: none; }
+  .appbar h2 { font-size: 22px; font-weight: 500; flex: 1; }
+  .appbar .ms { color: var(--on-surface-variant); }
+  .content { flex: 1; overflow: hidden; }
+
+  /* 하단 내비게이션 바 */
+  .nav { height: 80px; background: var(--surface-mid); display: flex; flex: none; padding-top: 12px; }
+  .nav div { flex: 1; display: flex; flex-direction: column; align-items: center; font-size: 12px; font-weight: 500; color: var(--on-surface-variant); }
+  .nav i { width: 64px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
+  .nav .on { color: var(--on-surface); font-weight: 700; }
+  .nav .on i { background: var(--secondary-container); color: var(--on-secondary-container); }
+  .gesture { height: 22px; background: var(--surface-mid); display: flex; align-items: center; justify-content: center; flex: none; }
+  .gesture::after { content: ''; width: 108px; height: 4px; border-radius: 2px; background: #1a1b21; opacity: .35; }
+
+  /* 공통 부품 */
+  .seg { display: flex; height: 40px; border: 1px solid var(--outline); border-radius: 20px; overflow: hidden; margin: 4px 16px 0; }
+  .seg div { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; font-weight: 500; }
+  .seg div + div { border-left: 1px solid var(--outline); }
+  .seg .on { background: var(--secondary-container); color: var(--on-secondary-container); }
+  .seg .ms { font-size: 18px; }
+  .tabs { display: flex; height: 48px; border-bottom: 1px solid var(--surface-high); flex: none; }
+  .tabs div { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500; color: var(--on-surface-variant); position: relative; }
+  .tabs .on { color: var(--primary); }
+  .tabs .on::after { content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 56px; height: 3px; border-radius: 3px 3px 0 0; background: var(--primary); }
+  .badge { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 12px; font-weight: 700; }
+  .badge.b999 { background: var(--primary); color: var(--on-primary); }
+  .badge.b700 { background: var(--tertiary-container); color: var(--on-tertiary-container); }
+  .section-title { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 8px; font-size: 14px; font-weight: 500; color: var(--on-surface-variant); }
+  .assist { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 10px; border: 1px solid var(--outline-variant); border-radius: 8px; font-size: 12px; font-weight: 500; color: var(--on-surface-variant); }
+
+  /* 학식 */
+  .week { display: flex; padding: 16px 12px 4px; }
+  .day { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .day .w { font-size: 12px; color: var(--on-surface-variant); }
+  .day .d { width: 40px; height: 40px; border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 500; }
+  .day .t { font-size: 11px; height: 14px; font-weight: 500; }
+  .day.today .d { background: var(--primary); color: var(--on-primary); }
+  .day.today .t, .day.today .w { color: var(--primary); }
+  .day.off .d { color: var(--outline); }
+  .day.off .t { color: var(--error); }
+  .day.off .w { color: var(--error); }
+  .datehead { padding: 14px 20px 10px; display: flex; align-items: baseline; justify-content: space-between; }
+  .datehead strong { font-size: 18px; font-weight: 700; }
+  .datehead span { font-size: 13px; color: var(--on-surface-variant); }
+  .card { margin: 0 16px; background: var(--surface-low); border-radius: 16px; }
+  .menu-item { display: flex; align-items: center; justify-content: space-between; height: 47px; padding: 0 18px; font-size: 15px; }
+  .menu-item + .menu-item { border-top: 1px solid rgba(197, 198, 208, .55); }
+  .menu-item .p { color: var(--on-surface-variant); }
+  .note { padding: 12px 22px 0; font-size: 12px; color: var(--on-surface-variant); display: flex; gap: 6px; align-items: center; }
+  .note .ms { font-size: 16px; }
+
+  /* 시내버스 */
+  .hero { margin: 16px 16px 0; padding: 18px 20px 16px; border-radius: 24px; background: var(--primary-container); color: var(--on-primary-container); }
+  .hero .top { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; }
+  .hero .big { margin-top: 10px; display: flex; align-items: baseline; gap: 6px; }
+  .hero .big b { font-size: 46px; font-weight: 700; letter-spacing: -1px; line-height: 1; }
+  .hero .big span { font-size: 20px; font-weight: 500; }
+  .hero .line { margin-top: 10px; font-size: 14px; }
+  .hero .then { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(11, 42, 107, .15); display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .hero .then .ms { font-size: 18px; }
+  .trip { display: flex; align-items: center; height: 54px; padding: 0 20px; gap: 14px; }
+  .trip + .trip { border-top: 1px solid rgba(197, 198, 208, .55); }
+  .trip .t { width: 58px; font-size: 18px; font-weight: 700; }
+  .trip .mid { flex: 1; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--on-surface-variant); }
+  .trip .r { font-size: 13px; color: var(--on-surface-variant); }
+  .trip.past { opacity: .42; }
+  .trip.next { background: rgba(53, 87, 168, .08); }
+  .trip.next .t { color: var(--primary); }
+  .pill { display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 13px; background: var(--primary); color: var(--on-primary); font-size: 12px; font-weight: 700; }
+
+  /* 통학버스 */
+  .chips { display: flex; gap: 8px; padding: 14px 16px 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 14px; border: 1px solid var(--outline); border-radius: 8px; font-size: 14px; font-weight: 500; color: var(--on-surface-variant); }
+  .chip.on { background: var(--secondary-container); border-color: var(--secondary-container); color: var(--on-secondary-container); padding-left: 8px; }
+  .chip .ms { font-size: 18px; }
+  .stops { margin: 12px 16px 0; padding: 6px 0; background: var(--surface-low); border-radius: 16px; }
+  .stop { display: flex; align-items: center; height: 52px; padding: 0 18px; gap: 14px; position: relative; }
+  .stop .dot { width: 14px; height: 14px; border-radius: 7px; border: 3px solid var(--primary); background: var(--surface-low); flex: none; z-index: 1; }
+  .stop.first .dot { background: var(--primary); }
+  .stop:not(:last-child)::before { content: ''; position: absolute; left: 24px; top: 33px; height: 38px; width: 2px; background: var(--primary); opacity: .35; }
+  .stop .name { flex: 1; font-size: 15px; }
+  .stop .name small { margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--primary); }
+  .stop .time { font-size: 15px; font-weight: 700; }
+  .info { padding: 12px 20px 0; }
+  .info div { display: flex; align-items: center; gap: 12px; height: 34px; font-size: 13px; color: var(--on-surface-variant); }
+  .info .ms { font-size: 20px; color: var(--primary); }
+
+  /* 한 장씩 뽑을 때 */
+  body.single { background: transparent; }
+  body.single .board { width: auto; padding: 24px; }
+  body.single .board > h1, body.single .board > .sub, body.single .foot, body.single .cap { display: none; }
+  body.single .row { margin: 0; }
+  body.single .cell:not(.pick) { display: none; }
+</style>
+</head>
+<body>
+<div class="board">
+  <h1>교통 · 학식 탭 목업</h1>
+  <p class="sub">Flutter Material 3 기준 · 화면 속 시각은 2026년 10월 6일(화) 오후 2시 32분으로 가정</p>
+
+  <div class="row">
+
+    <!-- ① 학식 -->
+    <div class="cell" data-s="meal">
+      <div class="phone"><div class="screen">
+        <div class="status"><span class="num">14:32</span><span class="icons"><span class="ms fill">signal_cellular_4_bar</span><span class="ms fill">wifi</span><span class="ms fill">battery_full</span></span></div>
+        <div class="appbar"><h2>학식</h2><span class="ms">calendar_month</span></div>
+        <div class="content">
+          <div class="seg">
+            <div class="on"><span class="ms">check</span>학생식당</div>
+            <div>교직원식당</div>
+          </div>
+          <div class="week">
+            <div class="day off"><span class="w">월</span><span class="d num">5</span><span class="t">휴일</span></div>
+            <div class="day today"><span class="w">화</span><span class="d num">6</span><span class="t">오늘</span></div>
+            <div class="day"><span class="w">수</span><span class="d num">7</span><span class="t"></span></div>
+            <div class="day"><span class="w">목</span><span class="d num">8</span><span class="t"></span></div>
+            <div class="day off"><span class="w">금</span><span class="d num">9</span><span class="t">한글날</span></div>
+          </div>
+          <div class="datehead"><strong>10월 6일 화요일</strong><span>충주캠퍼스 · 8개 메뉴</span></div>
+          <div class="card">
+            <div class="menu-item"><span>치즈돈까스</span><span class="p num">5,000원</span></div>
+            <div class="menu-item"><span>치킨까스</span><span class="p num">4,500원</span></div>
+            <div class="menu-item"><span>등심돈까스</span><span class="p num">4,500원</span></div>
+            <div class="menu-item"><span>치킨까스카레덮밥</span><span class="p num">5,000원</span></div>
+            <div class="menu-item"><span>순살감자탕</span><span class="p num">5,000원</span></div>
+            <div class="menu-item"><span>탕수육</span><span class="p num">2,000원</span></div>
+            <div class="menu-item"><span>찐만두</span><span class="p num">2,000원</span></div>
+            <div class="menu-item"><span>자판기라면</span><span class="p num">3,000원</span></div>
+          </div>
+          <p class="note"><span class="ms">info</span>식당 사정에 따라 메뉴가 바뀔 수 있어요</p>
+        </div>
+        <div class="nav">
+          <div><i><span class="ms">home</span></i>홈</div>
+          <div><i><span class="ms">how_to_reg</span></i>출결</div>
+          <div><i><span class="ms">local_library</span></i>도서관</div>
+          <div><i><span class="ms">directions_bus</span></i>교통</div>
+          <div class="on"><i><span class="ms fill">restaurant</span></i>학식</div>
+        </div>
+        <div class="gesture"></div>
+      </div></div>
+      <p class="cap"><b>① 학식</b><br><span>열면 오늘 날짜가 골라져 있고, 쉬는 날은 빨간 글씨로 표시합니다. 메뉴와 가격을 줄 맞춰 보여줍니다.</span></p>
+    </div>
+
+    <!-- ② 교통 · 시내버스 -->
+    <div class="cell" data-s="city">
+      <div class="phone"><div class="screen">
+        <div class="status"><span class="num">14:32</span><span class="icons"><span class="ms fill">signal_cellular_4_bar</span><span class="ms fill">wifi</span><span class="ms fill">battery_full</span></span></div>
+        <div class="appbar"><h2>교통</h2><span class="ms">map</span></div>
+        <div class="tabs"><div class="on">시내버스</div><div>통학버스</div><div>캠퍼스 순환</div></div>
+        <div class="content">
+          <div class="seg" style="margin-top:14px">
+            <div class="on"><span class="ms">check</span>교통대 → 터미널</div>
+            <div>터미널 → 교통대</div>
+          </div>
+          <div class="hero">
+            <div class="top"><span class="badge b999 num">999</span>다음 버스 · 교통대 출발</div>
+            <div class="big"><b class="num">15분</b><span>후 출발</span></div>
+            <p class="line num">14:47 교통대 출발 → 15:05 시외터미널 도착</p>
+            <p class="then num"><span class="ms">schedule</span>그다음 버스 15:10 (38분 후)</p>
+          </div>
+          <div class="section-title"><span>오늘 시간표</span><span class="assist">평일만 운행</span></div>
+          <div class="trip past"><span class="t num">12:55</span><span class="mid"><span class="badge b700">700 순환</span>터미널 13:43 도착</span><span class="r">지남</span></div>
+          <div class="trip next"><span class="t num">14:47</span><span class="mid"><span class="badge b999">999</span>터미널 15:05 도착</span><span class="pill">15분 후</span></div>
+          <div class="trip"><span class="t num">15:10</span><span class="mid"><span class="badge b999">999</span>터미널 15:28 도착</span><span class="r num">38분 후</span></div>
+          <div class="trip"><span class="t num">15:32</span><span class="mid"><span class="badge b999">999</span>터미널 15:50 도착</span><span class="r"></span></div>
+          <div class="trip"><span class="t num">15:55</span><span class="mid"><span class="badge b999">999</span>터미널 16:13 도착</span><span class="r"></span></div>
+          <div class="trip"><span class="t num">16:18</span><span class="mid"><span class="badge b999">999</span>터미널 16:36 도착</span><span class="r"></span></div>
+          <div class="trip"><span class="t num">16:41</span><span class="mid"><span class="badge b999">999</span>터미널 16:59 도착</span><span class="r"></span></div>
+        </div>
+        <div class="nav">
+          <div><i><span class="ms">home</span></i>홈</div>
+          <div><i><span class="ms">how_to_reg</span></i>출결</div>
+          <div><i><span class="ms">local_library</span></i>도서관</div>
+          <div class="on"><i><span class="ms fill">directions_bus</span></i>교통</div>
+          <div><i><span class="ms">restaurant</span></i>학식</div>
+        </div>
+        <div class="gesture"></div>
+      </div></div>
+      <p class="cap"><b>② 교통 · 시내버스</b><br><span>다음 버스까지 남은 시간을 맨 위에 크게 보여줍니다. 지난 버스는 흐리게, 다음 버스는 강조합니다.</span></p>
+    </div>
+
+    <!-- ③ 교통 · 통학버스 -->
+    <div class="cell" data-s="commute">
+      <div class="phone"><div class="screen">
+        <div class="status"><span class="num">14:32</span><span class="icons"><span class="ms fill">signal_cellular_4_bar</span><span class="ms fill">wifi</span><span class="ms fill">battery_full</span></span></div>
+        <div class="appbar"><h2>교통</h2><span class="ms">map</span></div>
+        <div class="tabs"><div>시내버스</div><div class="on">통학버스</div><div>캠퍼스 순환</div></div>
+        <div class="content">
+          <div class="chips">
+            <span class="chip on"><span class="ms">check</span>청주</span>
+            <span class="chip">이천</span>
+            <span class="chip">충주 시내</span>
+          </div>
+          <div class="seg" style="margin-top:8px">
+            <div>등교</div>
+            <div class="on"><span class="ms">check</span>하교</div>
+          </div>
+          <div class="hero">
+            <div class="top">청주행 하교 버스</div>
+            <div class="big"><b class="num">18:10</b><span>출발</span></div>
+            <p class="line num">3시간 38분 후 · 노천극장 앞에서 타요</p>
+          </div>
+          <div class="stops">
+            <div class="stop first"><span class="dot"></span><span class="name">충주캠퍼스 노천극장 앞<small>탑승</small></span><span class="time num">18:10</span></div>
+            <div class="stop"><span class="dot"></span><span class="name">청주신흥고</span><span class="time num">19:00</span></div>
+            <div class="stop"><span class="dot"></span><span class="name">청주가경터미널</span><span class="time num">19:25</span></div>
+          </div>
+          <div class="info">
+            <div><span class="ms">payments</span>편도 3,500원 · PAYCO 모바일 승차권</div>
+            <div><span class="ms">event</span>2학기 9. 1.(화) ~ 12. 21.(월), 방학 중 운행 안 함</div>
+            <div><span class="ms">info</span>교통 상황에 따라 시간이 바뀔 수 있어요</div>
+          </div>
+        </div>
+        <div class="nav">
+          <div><i><span class="ms">home</span></i>홈</div>
+          <div><i><span class="ms">how_to_reg</span></i>출결</div>
+          <div><i><span class="ms">local_library</span></i>도서관</div>
+          <div class="on"><i><span class="ms fill">directions_bus</span></i>교통</div>
+          <div><i><span class="ms">restaurant</span></i>학식</div>
+        </div>
+        <div class="gesture"></div>
+      </div></div>
+      <p class="cap"><b>③ 교통 · 통학버스</b><br><span>노선을 고르면 시간대에 맞춰 등교·하교가 골라집니다. 정류장 순서와 요금을 한 화면에 모았습니다.</span></p>
+    </div>
+
+  </div>
+
+  <p class="foot">식단과 시간표는 학교 홈페이지(충주캠퍼스 학생식당, 통학버스, 시내버스 안내)에서 2026년 10월 6일에 가져온 실제 내용입니다.<br>하단 탭 5개(홈 · 출결 · 도서관 · 교통 · 학식)의 이름과 순서는 가정입니다. 색은 Material 3 파란 계열 기본 색으로, 학교 색을 정하면 바꿀 수 있습니다.</p>
+</div>
+<script>
+  const s = new URLSearchParams(location.search).get('s');
+  if (s) {
+    document.body.classList.add('single');
+    document.querySelector(`.cell[data-s="${s}"]`).classList.add('pick');
+  }
+</script>
+</body>
+</html>

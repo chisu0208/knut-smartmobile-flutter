@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>길찾기 목업</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=block" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet">
+<style>
+  /* Material 3 색 (교통·학식 목업과 같은 값) */
+  :root {
+    --primary: #3557a8;
+    --on-primary: #ffffff;
+    --primary-container: #d9e2ff;
+    --on-primary-container: #0b2a6b;
+    --secondary-container: #dce2f9;
+    --on-secondary-container: #141b2c;
+    --error: #ba1a1a;
+    --pin: #d93a2b;
+    --surface: #faf9ff;
+    --surface-low: #f3f3fa;
+    --surface-mid: #ededf4;
+    --surface-high: #e7e8ef;
+    --on-surface: #1a1b21;
+    --on-surface-variant: #45464f;
+    --outline: #757680;
+    --outline-variant: #c5c6d0;
+    --page: #eceef3;
+    /* 지도 */
+    --map-land: #f0f2ed;
+    --map-green: #d9ead3;
+    --map-water: #cde0f2;
+    --map-road: #ffffff;
+    --map-road-edge: #d6dae2;
+    --map-bld: #dfe2e9;
+    --map-bld-edge: #c8cdd7;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+    color: var(--on-surface);
+    background: var(--page);
+    word-break: keep-all;
+    -webkit-font-smoothing: antialiased;
+  }
+  .ms {
+    font-family: 'Material Symbols Rounded';
+    font-weight: normal; font-style: normal; font-size: 24px; line-height: 1;
+    letter-spacing: normal; text-transform: none; white-space: nowrap; direction: ltr;
+    display: inline-block; font-feature-settings: 'liga';
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  .ms.fill { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* 전체 배치 */
+  .board { padding: 52px 56px 40px; width: 1440px; }
+  .board h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; }
+  .board .sub { margin-top: 8px; font-size: 16px; color: var(--on-surface-variant); }
+  .row { display: flex; gap: 48px; margin-top: 36px; }
+  .cell { width: 410px; }
+  .cap { margin-top: 20px; font-size: 16px; line-height: 1.55; }
+  .cap b { font-weight: 700; }
+  .cap span { color: var(--on-surface-variant); }
+  .foot { margin-top: 32px; font-size: 13px; color: var(--on-surface-variant); line-height: 1.7; }
+
+  /* 폰 틀 */
+  .phone {
+    width: 410px; height: 864px; padding: 10px; border-radius: 52px;
+    background: #16171b; box-shadow: 0 18px 40px rgba(20, 24, 40, .22);
+  }
+  .screen {
+    width: 390px; height: 844px; border-radius: 42px; overflow: hidden;
+    background: var(--surface); display: flex; flex-direction: column; position: relative;
+  }
+  .status { height: 40px; padding: 4px 26px 0; display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 500; flex: none; }
+  .status .icons { display: flex; gap: 4px; align-items: center; }
+  .status .icons .ms { font-size: 17px; }
+  .appbar { height: 60px; display: flex; align-items: center; gap: 12px; padding: 0 16px 0 12px; flex: none; }
+  .appbar h2 { font-size: 22px; font-weight: 500; flex: 1; }
+  .appbar .ms { color: var(--on-surface); width: 40px; text-align: center; }
+  .gesture { height: 22px; display: flex; align-items: center; justify-content: center; flex: none; background: var(--surface-low); }
+  .gesture::after { content: ''; width: 108px; height: 4px; border-radius: 2px; background: #1a1b21; opacity: .35; }
+
+  /* 지도 */
+  .map { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--map-land); }
+  .map svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .fab { position: absolute; right: 16px; width: 48px; height: 48px; border-radius: 14px; background: var(--surface-high); color: var(--primary); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0, 0, 0, .18); }
+
+  /* 바텀시트 */
+  .sheet { position: relative; margin-top: -26px; background: var(--surface-low); border-radius: 28px 28px 0 0; flex: none; z-index: 2; box-shadow: 0 -2px 10px rgba(20, 24, 40, .08); }
+  .handle { height: 26px; display: flex; align-items: center; justify-content: center; }
+  .handle::after { content: ''; width: 32px; height: 4px; border-radius: 2px; background: var(--on-surface-variant); opacity: .4; }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 0 20px 6px 24px; }
+  .sheet-head strong { font-size: 16px; font-weight: 700; }
+  .text-btn { font-size: 14px; font-weight: 500; color: var(--primary); }
+
+  /* 목록 행 */
+  .item { display: flex; align-items: center; gap: 14px; height: 62px; padding: 0 16px 0 20px; }
+  .lead { width: 40px; height: 40px; border-radius: 20px; background: var(--secondary-container); color: var(--on-secondary-container); display: flex; align-items: center; justify-content: center; flex: none; }
+  .lead .ms { font-size: 21px; }
+  .item .txt { flex: 1; min-width: 0; }
+  .item .t1 { font-size: 15px; font-weight: 500; }
+  .item .t2 { margin-top: 2px; font-size: 13px; color: var(--on-surface-variant); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item .t1 mark { background: none; color: var(--primary); font-weight: 700; }
+  .go { width: 40px; height: 40px; border-radius: 20px; display: flex; align-items: center; justify-content: center; color: var(--primary); flex: none; }
+  .code { display: inline-block; min-width: 0; padding: 0 5px; margin-right: 6px; border-radius: 4px; background: var(--surface-high); font-size: 11px; font-weight: 700; color: var(--on-surface-variant); line-height: 17px; }
+
+  /* 검색 */
+  .searchbar { margin: 4px 16px 12px; height: 56px; border-radius: 28px; background: var(--surface-high); display: flex; align-items: center; gap: 12px; padding: 0 18px; flex: none; }
+  .searchbar .ms { color: var(--on-surface-variant); }
+  .searchbar span.ph { flex: 1; font-size: 15px; color: var(--on-surface-variant); }
+  .searchview { height: 64px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--outline-variant); flex: none; }
+  .searchview .ms { width: 40px; text-align: center; color: var(--on-surface); }
+  .searchview .q { flex: 1; font-size: 17px; display: flex; align-items: center; }
+  .caret { width: 2px; height: 22px; background: var(--primary); margin-left: 1px; }
+  .chips { display: flex; gap: 8px; padding: 12px 16px 4px; flex: none; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 14px; border: 1px solid var(--outline); border-radius: 8px; font-size: 14px; font-weight: 500; color: var(--on-surface-variant); }
+  .chip.on { background: var(--secondary-container); border-color: var(--secondary-container); color: var(--on-secondary-container); padding-left: 8px; }
+  .chip .ms { font-size: 18px; }
+  .count { padding: 12px 20px 4px; font-size: 13px; color: var(--on-surface-variant); }
+
+  /* 길 안내 */
+  .fromto { margin: 0 16px 12px; padding: 6px 8px 6px 16px; border-radius: 16px; background: var(--surface-low); display: flex; align-items: center; gap: 4px; flex: none; }
+  .fromto .rows { flex: 1; }
+  .fromto .r { display: flex; align-items: center; gap: 12px; height: 48px; font-size: 15px; }
+  .fromto .r + .r { border-top: 1px solid var(--outline-variant); }
+  .fromto .r small { font-size: 12px; color: var(--on-surface-variant); margin-left: 4px; }
+  .dot-start { width: 14px; height: 14px; border-radius: 7px; background: var(--primary); box-shadow: 0 0 0 3px #fff, 0 0 0 5px rgba(53, 87, 168, .25); flex: none; margin: 0 1px; }
+  .fromto .ms.pin { color: var(--pin); font-size: 22px; margin-left: -3px; }
+  .swap { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: var(--on-surface-variant); }
+  .summary { display: flex; align-items: baseline; gap: 10px; padding: 0 24px 12px; }
+  .summary b { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; }
+  .summary span { font-size: 15px; color: var(--on-surface-variant); }
+  .steps { padding: 0 24px; }
+  .step { display: flex; align-items: center; gap: 14px; height: 42px; font-size: 14px; }
+  .step i { width: 24px; height: 24px; border-radius: 12px; background: var(--primary-container); color: var(--on-primary-container); font-style: normal; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex: none; }
+  .step.last i { background: var(--pin); color: #fff; }
+  .actions { display: flex; gap: 8px; padding: 14px 16px 16px; }
+  .btn { flex: 1; height: 44px; border-radius: 22px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; font-weight: 500; }
+  .btn .ms { font-size: 18px; }
+  .btn.tonal { background: var(--secondary-container); color: var(--on-secondary-container); }
+  .btn.outlined { border: 1px solid var(--outline); color: var(--primary); }
+
+  /* 한 장씩 뽑을 때 */
+  body.single { background: transparent; }
+  body.single .board { width: auto; padding: 24px; }
+  body.single .board > h1, body.single .board > .sub, body.single .foot, body.single .cap { display: none; }
+  body.single .row { margin: 0; }
+  body.single .cell:not(.pick) { display: none; }
+</style>
+</head>
+<body>
+<div class="board">
+  <h1>길찾기 목업</h1>
+  <p class="sub">Flutter Material 3 기준 · 충주캠퍼스 · 지금 위치는 미래융합정보관 앞으로 가정</p>
+
+  <div class="row">
+
+    <!-- ① 길찾기 첫 화면 -->
+    <div class="cell" data-s="home">
+      <div class="phone"><div class="screen">
+        <div class="status"><span class="num">14:32</span><span class="icons"><span class="ms fill">signal_cellular_4_bar</span><span class="ms fill">wifi</span><span class="ms fill">battery_full</span></span></div>
+        <div class="appbar"><span class="ms">arrow_back</span><h2>캠퍼스 길찾기</h2></div>
+        <div class="searchbar"><span class="ms">search</span><span class="ph">건물, 학과, 부서 검색</span></div>
+        <div class="map" id="map-home">
+          <svg></svg>
+          <div class="fab" style="bottom:40px"><span class="ms">my_location</span></div>
+        </div>
+        <div class="sheet">
+          <div class="handle"></div>
+          <div class="sheet-head"><strong>많이 찾는 곳</strong><span class="text-btn">전체 건물 보기</span></div>
+          <div class="item"><span class="lead"><span class="ms">restaurant</span></span><span class="txt"><p class="t1">학생식당</p><p class="t2"><span class="code">E8-1</span>대학본부 별관 · 1층</p></span><span class="go"><span class="ms">directions_walk</span></span></div>
+          <div class="item"><span class="lead"><span class="ms">local_library</span></span><span class="txt"><p class="t1">중앙도서관 열람실</p><p class="t2"><span class="code">W20</span>중앙도서관/교육관 · 1층</p></span><span class="go"><span class="ms">directions_walk</span></span></div>
+          <div class="item"><span class="lead"><span class="ms">badge</span></span><span class="txt"><p class="t1">학생과</p><p class="t2"><span class="code">W5</span>종합강의관 · 1층</p></span><span class="go"><span class="ms">directions_walk</span></span></div>
+          <div class="item"><span class="lead"><span class="ms">psychology</span></span><span class="txt"><p class="t1">학생상담센터</p><p class="t2"><span class="code">E18</span>국제청년협력센터 · 3층</p></span><span class="go"><span class="ms">directions_walk</span></span></div>
+        </div>
+        <div class="gesture"></div>
+      </div></div>
+      <p class="cap"><b>① 길찾기 첫 화면</b><br><span>빈 화면 대신 캠퍼스 지도와 지금 위치, 많이 찾는 곳을 바로 보여줍니다. 누르면 바로 길 안내로 넘어갑니다.</span></p>
+    </div>
+
+    <!-- ② 검색 -->
+    <div class="cell" data-s="search">
+      <div class="phone"><div class="screen">
+        <div class="status"><span class="num">14:32</span><span class="icons"><span class="ms fill">signal_cellular_4_bar</span><span class="ms fill">wifi</span><span class="ms fill">battery_full</span></span></div>
+        <div class="searchview"><span class="ms">arrow_back</span><span class="q">학생<span class="caret"></span></span><span class="ms">close</span></div>
+        <div class="chips">
+          <span class="chip on"><span class="ms">check</span>전체</span>
+          <span class="chip">건물</span>
+          <span class="chip">학과 · 부서</span>
+        </div>
+        <p class="count">'학생' 검색 결과 7건</p>
+        <div class="item"><span class="lead"><span class="ms">restaurant</span></span><span class="txt"><p class="t1"><mark>학생</mark>식당</p><p class="t2"><span class="code">E8-1</span>대학본부 별관 · 1층</p></span><span class="go"><span class="ms">directions_walk</span></span></div>
+        <div class="item"><span class="lead"><span class="ms">badge</span></span><span class="txt"><p class="t1"><mark>학생</mark>과</p><p class="t2"><span class="code">W5</span>종합강의관 · 1층</p></span><span class="go"><span class="ms">directions_walk</span></span></div>
+        <div class="item"><span class="lead"><span class="ms">apartment</span></span><span class="txt"><p class="t1"><mark>학생</mark>회관</p><p class="t2"><span class="code">E6</span>건물 · 1~4층</p></span><span class="go"><span class="ms">directions_walk</span></span></div>
+        <div class="item"><span class="lead"><span class="ms">psychology</span></span><span class="txt"><p class="t1"><mark>학생</mark>상담센터</p><p class="t2"><span class="code">E18</span>국제청년협력센터 · 3층</p></span><span class="go"><span class="ms">directions_walk</span></span></div>
+        <div class="item"><span class="lead"><span class="ms">accessible</span></span><span class="txt"><p class="t1">장애<mark>학생</mark>지원센터</p><p class="t2"><span class="code">W4</span>대학원 · 1층</p></span><span class="go"><span class="ms">directions_walk</span></span></div>
+        <div class="item"><span class="lead"><span class="ms">groups</span></span><span class="txt"><p class="t1">총<mark>학생</mark>회실</p><p class="t2"><span class="code">E6</span>학생회관 · 3층</p></span><span class="go"><span class="ms">directions_walk</span></span></div>
+        <div class="item"><span class="lead"><span class="ms">volunteer_activism</span></span><span class="txt"><p class="t1"><mark>학생</mark>복지위원회</p><p class="t2"><span class="code">E6</span>학생회관 · 3층</p></span><span class="go"><span class="ms">directions_walk</span></span></div>
+        <div style="flex:1"></div>
+        <div class="gesture" style="background:var(--surface)"></div>
+      </div></div>
+      <p class="cap"><b>② 검색</b><br><span>건물·학과·부서 이름의 일부만 쳐도 찾습니다. 건물 번호와 몇 층인지를 함께 보여줍니다.</span></p>
+    </div>
+
+    <!-- ③ 길 안내 -->
+    <div class="cell" data-s="route">
+      <div class="phone"><div class="screen">
+        <div class="status"><span class="num">14:32</span><span class="icons"><span class="ms fill">signal_cellular_4_bar</span><span class="ms fill">wifi</span><span class="ms fill">battery_full</span></span></div>
+        <div class="appbar"><span class="ms">arrow_back</span><h2>길 안내</h2></div>
+        <div class="fromto">
+          <div class="rows">
+            <div class="r"><span class="dot-start"></span>지금 위치<small>미래융합정보관 앞</small></div>
+            <div class="r"><span class="ms fill pin">location_on</span>학생식당<small>E8-1 대학본부 별관 1층</small></div>
+          </div>
+          <span class="swap"><span class="ms">swap_vert</span></span>
+        </div>
+        <div class="map" id="map-route">
+          <svg></svg>
+          <div class="fab" style="bottom:40px"><span class="ms">my_location</span></div>
+        </div>
+        <div class="sheet">
+          <div class="handle"></div>
+          <div class="summary"><b>도보 6분</b><span>약 460m</span></div>
+          <div class="steps">
+            <div class="step"><i>1</i>미래융합정보관 앞 길로 나와 대학원 쪽으로 걸어요</div>
+            <div class="step"><i>2</i>정문에서 올라오는 큰길에서 왼쪽으로 꺾어요</div>
+            <div class="step last"><i>3</i>대학본부 별관 1층 학생식당에 도착</div>
+          </div>
+          <div class="actions">
+            <span class="btn tonal"><span class="ms">restaurant</span>오늘 학식 보기</span>
+            <span class="btn outlined"><span class="ms">apartment</span>건물 층별 안내</span>
+          </div>
+        </div>
+        <div class="gesture"></div>
+      </div></div>
+      <p class="cap"><b>③ 길 안내</b><br><span>지도에 경로를 그리고 걸리는 시간과 순서를 알려줍니다. 학생식당이면 오늘 학식으로 바로 넘어갈 수 있습니다.</span></p>
+    </div>
+
+  </div>
+
+  <p class="foot">건물 번호·이름·층별 부서는 학교 홈페이지 캠퍼스 지도(2026년 10월 6일 확인)의 실제 내용이고, 지도는 그 건물 위치를 참고해 단순하게 다시 그린 그림입니다.<br>지도 속 길, 경로, 걸리는 시간과 거리는 예시입니다. 길찾기는 교통 화면 오른쪽 위 지도 아이콘으로 들어가는 화면으로 가정했습니다.</p>
+</div>
+
+<script>
+  // 학교 캠퍼스 지도(574×479)의 건물 표시 위치를 중심점으로 옮긴 값. [번호, 이름, x, y, 가로, 세로, 종류]
+  const BLD = [
+    ['E1', '정문', 355, 420, 16, 8],
+    ['E2', '국원쉼터', 413, 400, 20, 12],
+    ['E3', '국원생활관', 491, 358, 42, 18],
+    ['E4', '시스템관', 497, 283, 34, 18],
+    ['E5', '테크노관', 447, 296, 26, 20],
+    ['E6', '학생회관', 412, 229, 26, 18],
+    ['E7', '경영항공관', 470, 203, 30, 18],
+    ['E8', '대학본부', 377, 166, 26, 30],
+    ['E8-1', '학생식당', 364, 207, 24, 16],
+    ['E9', '항공·기계실습관', 407, 133, 20, 12],
+    ['E10', '역학시험동', 430, 113, 14, 10],
+    ['E11', '창업생산동', 463, 111, 22, 12],
+    ['E12', '건축관', 263, 126, 34, 16],
+    ['E13', '건설환경관', 293, 84, 34, 18],
+    ['E14', '인문사회관', 352, 54, 34, 16],
+    ['E15', '학군단', 440, 69, 18, 10],
+    ['E16', '대원생활관', 416, 22, 36, 18],
+    ['E17', '스마트ICT관', 410, 86, 26, 18],
+    ['E18', '국제청년협력센터', 446, 230, 24, 16],
+    ['W1', '테니스장', 244, 402, 30, 18, 'court'],
+    ['W2', '아레나K', 248, 352, 32, 26],
+    ['W3', '노천극장', 294, 338, 30, 22, 'amph'],
+    ['W4', '대학원', 275, 254, 32, 14],
+    ['W5', '종합강의관', 277, 220, 34, 18],
+    ['W6', '휴스퀘어관', 242, 236, 16, 12],
+    ['W7', '화학생명관', 280, 170, 34, 18],
+    ['W9', '공동실험관', 170, 54, 20, 22],
+    ['W10', '중원생활관', 229, 17, 36, 18],
+    ['W11', '예성생활관', 276, 14, 20, 18],
+    ['W13', '예성관리동', 319, 13, 14, 10],
+    ['W15', '동아리관', 78, 99, 20, 12],
+    ['W16', 'IT관', 83, 182, 30, 16],
+    ['W17', '인터넷창업센터', 126, 193, 20, 10],
+    ['W18', '미래융합정보관', 124, 222, 36, 18],
+    ['W19', '대운동장', 93, 343, 66, 48, 'field'],
+    ['W20', '중앙도서관', 154, 333, 20, 38],
+    ['W22', '환경관', 30, 393, 18, 10],
+  ];
+  // 단순화한 길 (지도 좌표)
+  const ROADS = [
+    [[0, 432], [574, 432]],
+    [[355, 432], [348, 365], [337, 300], [331, 250], [323, 195], [314, 140], [318, 100], [320, 66], [300, 40]],
+    [[150, 78], [205, 48], [260, 36], [300, 40], [370, 34], [440, 44]],
+    [[150, 78], [95, 92], [52, 150], [40, 245], [32, 330], [26, 432]],
+    [[40, 245], [124, 250], [190, 262], [260, 272], [333, 268]],
+    [[333, 268], [410, 262], [470, 255], [535, 262], [545, 320], [540, 390], [505, 432]],
+    [[190, 262], [178, 300], [172, 330]],
+    [[318, 100], [360, 104], [392, 110], [430, 98], [470, 90]],
+    [[323, 195], [350, 190], [400, 196], [445, 186], [500, 178]],
+  ];
+  const ROUTE = [[124, 233], [124, 250], [190, 262], [260, 272], [333, 268], [331, 250], [326, 214], [352, 210]];
+  const NS = 'http://www.w3.org/2000/svg';
+
+  function el(name, attrs, parent) {
+    const e = document.createElementNS(NS, name);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  function drawMap(box, view, opt) {
+    const svg = box.querySelector('svg');
+    const W = box.clientWidth, H = box.clientHeight;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const s = opt.fit ? Math.min(W / view.w, H / view.h) : Math.max(W / view.w, H / view.h);
+    const ox = (W - view.w * s) / 2 - view.x * s + (opt.dx || 0);
+    const oy = (H - view.h * s) / 2 - view.y * s + (opt.dy || 0);
+    const P = ([x, y]) => [x * s + ox, y * s + oy];
+    const line = pts => pts.map(P).map(p => p.join(',')).join(' ');
+
+    // 땅, 녹지, 강
+    el('rect', { x: 0, y: 0, width: W, height: H, fill: 'var(--map-land)' }, svg);
+    for (const [cx, cy, rx, ry] of [[168, 138, 62, 52], [525, 140, 60, 62], [40, 60, 40, 45], [470, 420, 50, 14]]) {
+      const [x, y] = P([cx, cy]);
+      el('ellipse', { cx: x, cy: y, rx: rx * s, ry: ry * s, fill: 'var(--map-green)' }, svg);
+    }
+    const [, wy] = P([0, 446]);
+    el('rect', { x: 0, y: wy, width: W, height: H, fill: 'var(--map-water)' }, svg);
+
+    // 길
+    for (const r of ROADS) el('polyline', { points: line(r), fill: 'none', stroke: 'var(--map-road-edge)', 'stroke-width': 9 * opt.road, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
+    for (const r of ROADS) el('polyline', { points: line(r), fill: 'none', stroke: 'var(--map-road)', 'stroke-width': 6.5 * opt.road, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
+
+    // 건물
+    for (const [code, name, cx, cy, w, h, kind] of BLD) {
+      const [x, y] = P([cx - w / 2, cy - h / 2]);
+      const hi = opt.dest === code;
+      let fill = 'var(--map-bld)', stroke = 'var(--map-bld-edge)';
+      if (kind === 'field') { fill = '#cfe5c4'; stroke = '#b5d3a8'; }
+      if (kind === 'court') { fill = '#c9e1d9'; stroke = '#a9cbbf'; }
+      if (hi) { fill = '#ffd9d4'; stroke = 'var(--pin)'; }
+      el('rect', { x, y, width: w * s, height: h * s, rx: kind === 'amph' ? h * s / 2 : 3, fill, stroke, 'stroke-width': hi ? 2 : 1 }, svg);
+      if (kind === 'field') el('rect', { x: x + 8 * s, y: y + 8 * s, width: (w - 16) * s, height: (h - 16) * s, rx: (h - 16) * s / 2, fill: 'none', stroke: '#fff', 'stroke-width': 1.5 }, svg);
+    }
+
+    // 경로
+    if (opt.route) {
+      el('polyline', { points: line(ROUTE), fill: 'none', stroke: '#fff', 'stroke-width': 11, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
+      el('polyline', { points: line(ROUTE), fill: 'none', stroke: 'var(--primary)', 'stroke-width': 6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
+    }
+
+    // 이름표
+    for (const code of opt.labels) {
+      const b = BLD.find(b => b[0] === code);
+      const up = (opt.above || []).includes(code);
+      const [x, y] = P([b[2], b[3] + (up ? -b[5] / 2 : b[5] / 2)]);
+      const t = el('text', { x, y: up ? y - 5 : y + 13, 'text-anchor': 'middle', 'font-size': opt.fs || 11, 'font-weight': code === opt.dest ? 700 : 500, fill: code === opt.dest ? 'var(--pin)' : 'var(--on-surface-variant)', stroke: 'var(--map-land)', 'stroke-width': 3, 'paint-order': 'stroke', 'stroke-linejoin': 'round' }, svg);
+      t.textContent = b[1];
+    }
+
+    // 지금 위치
+    const [mx, my] = P(opt.me);
+    el('circle', { cx: mx, cy: my, r: 18, fill: 'var(--primary)', opacity: .16 }, svg);
+    el('circle', { cx: mx, cy: my, r: 7.5, fill: 'var(--primary)', stroke: '#fff', 'stroke-width': 3 }, svg);
+
+    // 도착 핀
+    if (opt.dest) {
+      const b = BLD.find(b => b[0] === opt.dest);
+      const [px, py] = P([b[2], b[3] - b[5] / 2]);
+      const g = el('g', { transform: `translate(${px},${py - 2})` }, svg);
+      el('path', { d: 'M0,0 C-4,-9 -13,-14 -13,-24 A13,13 0 1 1 13,-24 C13,-14 4,-9 0,0 Z', fill: 'var(--pin)', stroke: '#fff', 'stroke-width': 2 }, g);
+      el('circle', { cx: 0, cy: -24, r: 5, fill: '#fff' }, g);
+    }
+  }
+
+  const s = new URLSearchParams(location.search).get('s');
+  if (s) {
+    document.body.classList.add('single');
+    document.querySelector(`.cell[data-s="${s}"]`).classList.add('pick');
+  }
+  document.fonts.ready.then(() => {
+    const home = document.getElementById('map-home');
+    if (home.clientWidth) drawMap(home, { x: 0, y: 0, w: 574, h: 450 }, {
+      road: .8, me: [124, 240], fs: 10.5, dy: -6,
+      labels: ['E1', 'W3', 'W5', 'W20', 'W18', 'E8', 'E6', 'E17', 'W19', 'W10', 'E3', 'E13'], above: ['W18'],
+    });
+    const route = document.getElementById('map-route');
+    if (route.clientWidth) drawMap(route, { x: 92, y: 145, w: 322, h: 140 }, {
+      fit: true, road: 1.3, me: [124, 236], route: true, dest: 'E8-1', fs: 11.5, dy: -10,
+      labels: ['W18', 'W4', 'W5', 'W7', 'E8', 'E8-1'], above: ['W18', 'W4', 'W5', 'W7', 'E8'],
+    });
+  });
+</script>
+</body>
+</html>
