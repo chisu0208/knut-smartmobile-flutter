@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.Uri
@@ -487,6 +488,12 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
         } else {
             callback.onReceiveValue(Array(clip.itemCount) { clip.getItemAt(it).uri })
         }
+    }
+
+    /** 휴대폰 글자 크기 설정을 바꾸면 웹 글자 크기도 따라간다(통합본 5-1). 매니페스트 configChanges에 fontScale이 있다. */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        webViews.applyTextZoom()
     }
 
     override fun onDestroy() {

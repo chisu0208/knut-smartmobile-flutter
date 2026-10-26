@@ -1655,7 +1655,8 @@ class _MainScreenState extends State<MainScreen>
     );
   }
 
-  /// 대화상자 창: 화면폭 − 70dp, 뒤를 0.5 어둡게, 바깥 터치 무시.
+  /// 대화상자 창: 화면폭 − 70dp, 뒤를 0.5 어둡게, 바깥 터치 무시. 글자 크기 설정을 키우면
+  /// 길어질 수 있어 화면보다 높으면 스크롤한다.
   Widget _dialogLayer(_AppDialog dialog) {
     final double width = ((_screenWidthPx - (_dpr * 70).truncate()) / _dpr)
         .clamp(0, double.infinity);
@@ -1663,7 +1664,9 @@ class _MainScreenState extends State<MainScreen>
       color: const Color(0x80000000),
       child: SafeArea(
         child: Center(
-          child: SizedBox(width: width, child: dialog.build()),
+          child: SingleChildScrollView(
+            child: SizedBox(width: width, child: dialog.build()),
+          ),
         ),
       ),
     );

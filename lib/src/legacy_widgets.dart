@@ -264,6 +264,9 @@ class RoundedWebViewClipper extends CustomClipper<Path> {
 }
 
 /// `alert_popup.xml`(확인 버튼) / `nfc_popup.xml`(취소 버튼).
+///
+/// 원본 글자 크기는 dp 단위(18dp)라 휴대폰 글자 크기 설정을 따르지 않았다. 개선판은 sp처럼
+/// 설정을 따른다(통합본 5-8).
 class MessagePopup extends StatelessWidget {
   const MessagePopup({
     super.key,
@@ -299,7 +302,6 @@ class MessagePopup extends StatelessWidget {
               child: Text(
                 message,
                 textAlign: TextAlign.center,
-                textScaler: TextScaler.noScaling, // textSize가 dp 단위
                 style: const TextStyle(fontSize: 18, color: Colors.black),
               ),
             ),
@@ -366,7 +368,8 @@ class _FilledDialogButton extends StatelessWidget {
   }
 }
 
-/// `dialog_popup.xml`: 위아래 회색 선 사이의 글, 그 아래 버튼 칸.
+/// `dialog_popup.xml`: 위아래 회색 선 사이의 글, 그 아래 버튼 칸. 글자는 휴대폰 글자 크기
+/// 설정을 따른다(통합본 5-8).
 class ButtonsPopup extends StatelessWidget {
   const ButtonsPopup({super.key, required this.message, required this.buttons});
 
@@ -393,7 +396,6 @@ class ButtonsPopup extends StatelessWidget {
                 padding: const EdgeInsets.all(10),
                 child: Text(
                   message,
-                  textScaler: TextScaler.noScaling, // textSize가 dp 단위
                   style: const TextStyle(fontSize: 18, color: Colors.black),
                 ),
               ),

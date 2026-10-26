@@ -42,6 +42,7 @@ import io.flutter.plugins.webviewflutter.WebChromeClientProxyApi
 import io.flutter.plugins.webviewflutter.WebViewFlutterAndroidExternalApi
 import java.net.URISyntaxException
 import java.net.URLDecoder
+import kotlin.math.roundToInt
 
 /**
  * webview_flutter가 만든 네이티브 WebView에 원본 MainActivity의 WebView 설정을 그대로 입힌다.
@@ -57,6 +58,9 @@ import java.net.URLDecoder
 class WebViewBridge(private val activity: MainActivity) {
     private val pendingWindows = HashMap<Int, Message>()
     private var nextToken = 1
+
+    /** 설정을 입힌 웹뷰들. 휴대폰 글자 크기를 바꾸면 모두 다시 맞춘다. */
+    private val installed = LinkedHashSet<Long>()
 
     private fun webView(id: Long): WebView? {
         val binding = activity.pluginBinding ?: return null
@@ -74,11 +78,16 @@ class WebViewBridge(private val activity: MainActivity) {
         // webview_flutter가 생성자에서 바꿔 둔 값을 Android 기본값으로 되돌린 뒤 원본 설정을 입힌다.
         s.loadWithOverviewMode = false
         s.useWideViewPort = false
-        s.builtInZoomControls = false
-        s.displayZoomControls = true
+        // 원본은 확대를 막았다(builtInZoomControls 기본값 false). 개선판은 두 손가락 확대를 허용하고
+        // 확대 버튼은 숨긴다(통합본 5-2). 페이지가 확대를 막아도 풀어 주는 스크립트는 ShellWebViewClient.
+        s.setSupportZoom(true)
+        s.builtInZoomControls = true
+        s.displayZoomControls = false
         s.javaScriptEnabled = true
         s.domStorageEnabled = true
-        s.textZoom = 85
+        // 원본은 85% 고정이었다. 개선판은 100%에 휴대폰 글자 크기 설정을 곱한다(통합본 5-1).
+        s.textZoom = textZoom()
+        installed.add(id)
         when (kind) {
             "main" -> {
                 s.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
@@ -134,6 +143,19 @@ class WebViewBridge(private val activity: MainActivity) {
 
     fun destroy(id: Long) {
         webView(id)?.destroy()
+        installed.remove(id)
+    }
+
+    /** 휴대폰 글자 크기 설정(fontScale)을 반영한 웹 글자 크기(%). */
+    private fun textZoom(): Int = (activity.resources.configuration.fontScale * 100).roundToInt()
+
+    /** 앱이 떠 있는 동안 글자 크기 설정을 바꾸면 열려 있는 웹뷰에도 바로 반영한다. */
+    fun applyTextZoom() {
+        val zoom = textZoom()
+        installed.toList().forEach { id ->
+            val webView = webView(id)
+            if (webView == null) installed.remove(id) else webView.settings.textZoom = zoom
+        }
     }
 
     /** Dart [WebEntry]에 보내는 웹뷰 이벤트: navigate, committed, visible, download. */
@@ -295,11 +317,15 @@ class WebViewBridge(private val activity: MainActivity) {
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) =
             inner.onPageStarted(view, url, favicon)
 
-        override fun onPageFinished(view: WebView, url: String) = inner.onPageFinished(view, url)
+        override fun onPageFinished(view: WebView, url: String) {
+            view.evaluateJavascript(ALLOW_ZOOM_SCRIPT, null)
+            inner.onPageFinished(view, url)
+        }
 
         override fun onLoadResource(view: WebView, url: String) = inner.onLoadResource(view, url)
 
         override fun onPageCommitVisible(view: WebView, url: String) {
+            view.evaluateJavascript(ALLOW_ZOOM_SCRIPT, null)
             inner.onPageCommitVisible(view, url)
             event(id, "visible", url)
         }
@@ -463,6 +489,23 @@ class WebViewBridge(private val activity: MainActivity) {
     }
 
     companion object {
+        /**
+         * 학교 페이지 대부분이 viewport에 `user-scalable=no`를 넣어 확대를 막는다(통합본 5-2).
+         * 첫 화면과 페이지 끝에서 viewport의 확대 금지·최대 배율만 바꿔 두 손가락 확대를 허용한다.
+         */
+        private val ALLOW_ZOOM_SCRIPT = """
+            (function () {
+              var metas = document.querySelectorAll('meta[name="viewport"]');
+              for (var i = 0; i < metas.length; i++) {
+                var content = metas[i].getAttribute('content') || '';
+                var next = content
+                  .replace(/user-scalable\s*=\s*(no|0)/gi, 'user-scalable=yes')
+                  .replace(/maximum-scale\s*=\s*[0-9.]+/gi, 'maximum-scale=5');
+                if (next !== content) metas[i].setAttribute('content', next);
+              }
+            })();
+        """.trimIndent()
+
         /** Java `String.split(regex)`처럼 끝의 빈 문자열을 버린다. */
         fun javaSplit(value: String, delimiter: String): List<String> {
             if (!value.contains(delimiter)) return listOf(value)

@@ -108,7 +108,6 @@ class _QrScanScreenState extends State<QrScanScreen> {
                         ],
                       ),
                       textAlign: TextAlign.center,
-                      textScaler: TextScaler.noScaling, // textSize가 dp 단위
                       style: const TextStyle(fontSize: 20, color: Colors.white),
                     ),
                   ),
