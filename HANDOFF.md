@@ -582,30 +582,72 @@ CoordinatorLayout (바깥 여백 1dp)
 
 ## 7. 클라우드 세션 Setup script
 
-환경 설정의 Setup script에 넣으면 Flutter와 Android SDK가 설치된 상태로 세션이 시작된다(약 5분 안에 끝나면 캐시됨).
+환경 설정의 Setup script에 넣으면 Flutter와 Android SDK가 설치된 상태로 세션이 시작된다. 아래는 지금 환경에 들어 있는 스크립트다(2026-10-26 교체).
+
+- 바뀐 점: 내려받는 주소와 HTTP 코드를 `[setup]` 줄로 남긴다. 무엇이 실패해도 세션이 시작되도록 0으로 끝낸다(실패하면 `[setup] 중단: …` 줄이 남는다). 이미 설치돼 있으면 내려받기를 건너뛴다.
+- 이전 스크립트(`set -e`, `curl -f`)는 클라우드에서 Flutter 내려받기가 HTTP 404를 받자 스크립트 전체가 실패해서 세션이 시작되지 못했다. 같은 주소가 사용자 PC에서는 200이었다.
+- 실패해서 `[setup] 중단` 줄이 남았으면, 세션 안에서 같은 스크립트를 다시 돌려 설치를 이어 간다(이미 끝난 부분은 건너뛴다).
+
+**실제 실행 결과 (2026-10-26, 글자 스타일 수정 세션): 성공.**
+
+- 환경 관리자 로그(`/tmp/env-manager.log`)에서 init script가 15:21:41(UTC)에 시작해 15:23:16에 `Successfully executed init script`로 끝났다(약 95초). 실행된 스크립트 길이 3389바이트가 아래 스크립트와 같다. `[setup]` 줄 자체는 세션 안에서 읽을 수 있는 로그에 남지 않았다.
+- 세션 시작 뒤 `flutter --version`은 3.47.2(Dart 3.13.2)였다. `flutter doctor -v`에서는 Android SDK 36.0.0(platform android-36, build-tools 36.0.0)이 보였다. 세션 안에서 같은 주소(Flutter tar.xz, `repository2-3.xml`)를 다시 요청하면 HTTP 200이었다.
+- 세션 안에서 스크립트를 다시 돌리면 내려받기를 모두 건너뛰고 3초 만에 `[setup] 완료: Flutter 3.47.2, Android SDK /opt/android-sdk`로 끝난다.
+- `flutter doctor`는 `Android license status unknown`을 보이지만, 빌드는 된다(AGP가 NDK·CMake를 자동으로 설치함).
 
 ```bash
 #!/bin/bash
-set -e
-# Flutter (사용자 PC와 같은 버전)
-cd /opt
-curl -fsSL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.2-stable.tar.xz | tar -xJ
+# knut-smartmobile-flutter 클라우드 환경 Setup script
+# Flutter 3.47.2 + Android SDK(platform-tools, android-36, build-tools 36.0.0) 설치.
+# 무엇이 실패해도 세션은 시작되도록 0으로 끝낸다. 실패 이유는 "[setup]" 줄에 남는다.
+set -uo pipefail
+
+FLUTTER_VERSION=3.47.2
+FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
+ANDROID_HOME=/opt/android-sdk
+
+log() { echo "[setup] $*"; }
+stop() { log "중단: $*"; log "세션 안에서 HANDOFF.md 7장대로 설치를 이어 가세요."; exit 0; }
+
+# 내려받기: 주소와 HTTP 상태를 남긴다.
+fetch() {
+  local url=$1 out=$2 code
+  log "내려받기: $url"
+  code=$(curl -sSL --retry 3 --connect-timeout 20 -w '%{http_code}' -o "$out" "$url") || { log "curl 오류(네트워크 차단 가능성)"; return 1; }
+  [ "$code" = "200" ] || { log "HTTP $code"; return 1; }
+}
+
+# ---- Flutter ----
+if [ ! -x /opt/flutter/bin/flutter ]; then
+  fetch "$FLUTTER_URL" /tmp/flutter.tar.xz || stop "Flutter 내려받기 실패"
+  tar -xJf /tmp/flutter.tar.xz -C /opt || stop "Flutter 압축 풀기 실패"
+  rm -f /tmp/flutter.tar.xz
+fi
 git config --global --add safe.directory /opt/flutter
 ln -sf /opt/flutter/bin/flutter /usr/local/bin/flutter
 ln -sf /opt/flutter/bin/dart /usr/local/bin/dart
-flutter --disable-analytics
+flutter --disable-analytics >/dev/null 2>&1 || true
+flutter --version || stop "flutter 실행 실패"
 
-# Android SDK
-export ANDROID_HOME=/opt/android-sdk
-mkdir -p $ANDROID_HOME/cmdline-tools && cd /tmp
-ZIP=$(curl -fsSL https://dl.google.com/android/repository/repository2-3.xml | grep -o 'commandlinetools-linux-[0-9]*_latest.zip' | sort -V | tail -1)
-curl -fsSL "https://dl.google.com/android/repository/$ZIP" -o cmdtools.zip
-unzip -q cmdtools.zip && mv cmdline-tools $ANDROID_HOME/cmdline-tools/latest
-yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses > /dev/null || true
-$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-36" "build-tools;36.0.0"
-flutter config --android-sdk $ANDROID_HOME
+# ---- Android SDK ----
+SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+if [ ! -x "$SDKMANAGER" ]; then
+  mkdir -p "$ANDROID_HOME/cmdline-tools"
+  fetch https://dl.google.com/android/repository/repository2-3.xml /tmp/repository.xml || stop "Android 저장소 목록 실패"
+  ZIP=$(grep -o 'commandlinetools-linux-[0-9]*_latest.zip' /tmp/repository.xml | sort -V | tail -1)
+  [ -n "$ZIP" ] || stop "commandlinetools 파일 이름을 찾지 못함"
+  fetch "https://dl.google.com/android/repository/$ZIP" /tmp/cmdtools.zip || stop "commandlinetools 내려받기 실패"
+  rm -rf /tmp/cmdline-tools
+  unzip -q /tmp/cmdtools.zip -d /tmp || stop "commandlinetools 압축 풀기 실패"
+  mv /tmp/cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"
+  rm -f /tmp/cmdtools.zip /tmp/repository.xml
+fi
+yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null 2>&1 || true
+"$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-36" "build-tools;36.0.0" \
+  || stop "Android SDK 패키지 설치 실패"
+flutter config --android-sdk "$ANDROID_HOME" || true
 
-# Maven Central이 429를 돌려줄 때를 대비해 Google 미러로 돌림(컨테이너 안에서만)
+# ---- Maven Central이 429를 돌려줄 때를 대비해 Google 미러로 돌림(컨테이너 안에서만) ----
 mkdir -p ~/.gradle/init.d
 cat > ~/.gradle/init.d/maven-central-mirror.gradle <<'EOF'
 def mirror = 'https://maven-central.storage-download.googleapis.com/maven2/'
@@ -621,9 +663,12 @@ beforeSettings { s ->
 }
 allprojects { p -> rewrite(p.buildscript.repositories); rewrite(p.repositories) }
 EOF
+
+log "완료: Flutter ${FLUTTER_VERSION}, Android SDK ${ANDROID_HOME}"
+exit 0
 ```
 
-첫 `flutter build apk`는 NDK·CMake를 내려받느라 5분 남짓 걸린다.
+첫 `flutter build apk --debug`는 NDK·CMake를 내려받느라 7분 남짓 걸린다(2026-10-26: Gradle 422.6초).
 
 ---
 
