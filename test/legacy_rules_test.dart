@@ -133,8 +133,30 @@ void main() {
       final AnimTrack track = AnimTrack((_) => () {});
       track.start(LegacyAnim.outBottom);
       track.tick(Duration.zero);
-      track.tick(const Duration(milliseconds: 500));
+      track.tick(AnimTrack.duration);
       expect(track.offset(const Size(400, 800), const Size(400, 640)).dy, 640);
+    });
+
+    test('개선판: 0.25초, 빠르게 출발해 감속(통합본 6-2)', () {
+      expect(AnimTrack.duration, const Duration(milliseconds: 250));
+      int calls = 0;
+      final AnimTrack track = AnimTrack(
+        (_) =>
+            () => calls++,
+      );
+      track.start(LegacyAnim.inRight);
+      track.tick(Duration.zero);
+      // 절반 시간에 이미 거리의 3/4를 왔다(원본 accelerate_decelerate는 1/2).
+      track.tick(const Duration(milliseconds: 125));
+      expect(
+        track.offset(const Size(400, 800), const Size(320, 800)).dx,
+        closeTo(100, 0.001),
+      );
+      expect(calls, 0);
+      track.tick(const Duration(milliseconds: 250));
+      expect(calls, 1);
+      expect(AnimTrack.curve(0), 0);
+      expect(AnimTrack.curve(1), 1);
     });
   });
 }
