@@ -423,8 +423,10 @@ class _MainScreenState extends State<MainScreen>
             slot.items = <_MenuButton>[];
             // 원본은 getJSONObject 뒤에 instanceof를 검사해서, 배열이면 여기서 예외로 나머지
             // 구성(푸터, 주소 불러오기)이 모두 중단됐다(HANDOFF 5.6). 개선판은 팝업 헤더(I0)처럼
-            // 배열이면 버튼을 차례로 넣는다.
-            for (final JObj item in menu.getJSONObjects(side)) {
+            // 배열이면 버튼을 차례로 넣고, 빈 배열이면 칸을 숨긴다.
+            final List<JObj> items = menu.getJSONObjects(side);
+            slot.visible = items.isNotEmpty;
+            for (final JObj item in items) {
               slot.items.addAll(await _j0(item, 'main_$side'));
             }
           }
