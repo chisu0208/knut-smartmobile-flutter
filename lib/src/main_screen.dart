@@ -1467,7 +1467,15 @@ class _MainScreenState extends State<MainScreen>
     );
   }
 
+  /// 메인 헤더. 가운데 칸이 50dp로 정해져 있어 글자 배율에 상한을 둔다([BarTextScale]).
   Widget _mainHeader() {
+    return BarTextScale(
+      maxScaleFactor: BarTextScale.bar,
+      child: _mainHeaderBody(),
+    );
+  }
+
+  Widget _mainHeaderBody() {
     return Container(
       decoration: _headerHasBitmap ? null : _headerBox.decoration(),
       child: Stack(
@@ -1514,13 +1522,16 @@ class _MainScreenState extends State<MainScreen>
   /// `main_footer`: 처음에는 레이아웃의 "*" 버튼(AppCompat 기본 버튼).
   Widget _mainFooter() {
     final List<_MenuButton>? items = _footerItems;
-    return Container(
-      height: 50,
-      decoration: _footerBox.decoration(),
-      child: Row(
-        children: items == null
-            ? const <Widget>[LegacyButton(text: '*')]
-            : items.map(_slotButton).toList(),
+    return BarTextScale(
+      maxScaleFactor: BarTextScale.bar,
+      child: Container(
+        height: 50,
+        decoration: _footerBox.decoration(),
+        child: Row(
+          children: items == null
+              ? const <Widget>[LegacyButton(text: '*')]
+              : items.map(_slotButton).toList(),
+        ),
       ),
     );
   }
@@ -1602,10 +1613,13 @@ class _MainScreenState extends State<MainScreen>
           ),
         ),
         if (_popupFooterVisible)
-          Container(
-            height: 50,
-            decoration: _popupFooterBox.decoration(),
-            child: Row(children: _popupFooterItems.map(_slotButton).toList()),
+          BarTextScale(
+            maxScaleFactor: BarTextScale.bar,
+            child: Container(
+              height: 50,
+              decoration: _popupFooterBox.decoration(),
+              child: Row(children: _popupFooterItems.map(_slotButton).toList()),
+            ),
           ),
       ],
     );
@@ -1642,8 +1656,15 @@ class _MainScreenState extends State<MainScreen>
     );
   }
 
-  /// `popup_header`: 터치는 먹기만 한다.
+  /// `popup_header`: 터치는 먹기만 한다. 제목 칸이 40dp라 글자 배율에 상한을 둔다([BarTextScale]).
   Widget _popupHeader() {
+    return BarTextScale(
+      maxScaleFactor: BarTextScale.popupHeader,
+      child: _popupHeaderBody(),
+    );
+  }
+
+  Widget _popupHeaderBody() {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {},
