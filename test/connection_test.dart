@@ -176,16 +176,17 @@ void main() {
 
     test('앱이 불러온 주소가 연결 오류로 실패하면 안내, 다시 시도는 헤더까지 같게', () {
       fakeAsync((FakeAsync async) {
-        final PageLoad load = PageLoad(() {});
+        int clears = 0;
+        final PageLoad load = PageLoad(() {}, onClearHistory: () => clears++);
         const String url = 'https://mobile.ut.ac.kr/page/main';
-        load.ownLoad(url, headers);
+        load.ownLoad(url, headers, clearHistory: true);
         load.mainFrameError(url, connectionError: true);
-        // 오류 페이지의 시작·끝 알림은 성공으로 치지 않는다.
+        // 오류 페이지의 시작·끝 알림은 성공으로 치지 않는다(방문 기록도 지우지 않음).
         load.pageStarted(url);
         load.pageFinished(url);
+        expect(clears, 0);
         expect(load.problem, ConnectionProblem.failed);
         expect(load.busy, isFalse);
-        expect(load.ownLoadDone, isFalse);
         load.markOffline();
         expect(load.problem, ConnectionProblem.offline);
 
@@ -196,9 +197,10 @@ void main() {
         expect(load.problem, isNull);
         expect(load.busy, isTrue);
 
+        // 다시 시도가 성공하면 그때 방문 기록을 지운다.
         load.pageStarted(url);
         load.pageFinished(url);
-        expect(load.ownLoadDone, isTrue);
+        expect(clears, greaterThan(0));
         expect(load.busy, isFalse);
         async.elapse(PageLoad.slowAfter);
         expect(load.problem, isNull);

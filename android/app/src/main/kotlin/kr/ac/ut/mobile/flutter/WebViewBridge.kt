@@ -108,7 +108,7 @@ class WebViewBridge(private val activity: MainActivity) {
                 s.javaScriptCanOpenWindowsAutomatically = true
                 s.setSupportMultipleWindows(true)
                 webView.addJavascriptInterface(AllytteJs(), "allytteAndroid")
-                webView.setDownloadListener(downloadListener(id, kind, webView))
+                webView.setDownloadListener(downloadListener(id))
             }
             else -> {
                 s.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
@@ -120,7 +120,7 @@ class WebViewBridge(private val activity: MainActivity) {
                 s.allowFileAccessFromFileURLs = true
                 @Suppress("DEPRECATION")
                 s.allowUniversalAccessFromFileURLs = true
-                webView.setDownloadListener(downloadListener(id, kind, webView))
+                webView.setDownloadListener(downloadListener(id))
             }
         }
         // 클라이언트를 감싸려면 현재 클라이언트를 읽어야 해서 Android 8.0 이상에서만 가능하다.
@@ -128,7 +128,7 @@ class WebViewBridge(private val activity: MainActivity) {
             webView.webViewClient = ShellWebViewClient(id, kind, webView.webViewClient)
             val chrome = webView.webChromeClient
             if (kind != "main" && chrome != null) {
-                webView.webChromeClient = ShellChromeClient(kind, chrome)
+                webView.webChromeClient = ShellChromeClient(id, kind, chrome)
             }
         }
     }
@@ -163,8 +163,8 @@ class WebViewBridge(private val activity: MainActivity) {
     }
 
     /** Dart [WebEntry]에 보내는 웹뷰 이벤트: navigate, committed, visible, download. */
-    private fun event(id: Long, type: String, url: String?) {
-        activity.invokeDart("webEvent", mapOf("id" to id, "type" to type, "url" to url))
+    private fun event(id: Long, type: String, url: String?, extra: Map<String, Any> = emptyMap()) {
+        activity.invokeDart("webEvent", mapOf("id" to id, "type" to type, "url" to url) + extra)
     }
 
     /** 원본 `B0()`/`c1()`의 `loadUrl(url, extraHeaders)`. */
@@ -252,11 +252,10 @@ class WebViewBridge(private val activity: MainActivity) {
      * 원본은 실패하면 그때 저장공간 권한을 요청하고 다시 눌러야 했다. 개선판은 권한이 필요한
      * Android 9 이하에서만, 권한이 없을 때 먼저 요청하고 허용하면 이어서 내려받는다(통합본 1-1).
      *
-     * 공지 첨부파일처럼 `window.open`으로 열린 자식·손자 창이 내려받기만 하고 보여 줄 페이지가
-     * 없으면(about:blank) 그 창을 바로 닫는다. 원본은 빈 창이 남아 팝업이 하얗게 보였고, 뒤로 키
-     * 한 번에 공지 팝업까지 닫혔다.
+     * 공지 첨부파일처럼 `window.open`으로 열린 창이 내려받기만 하고 그린 페이지가 없으면 Dart가
+     * `download` 이벤트를 받고 그 창을 닫는다(`page_load.dart` `closeWindowAfterDownload`).
      */
-    private fun downloadListener(id: Long, kind: String, webView: WebView) = DownloadListener {
+    private fun downloadListener(id: Long) = DownloadListener {
             url, userAgent, contentDisposition, mimeType, _ ->
         event(id, "download", url)
         val download = { enqueueDownload(url, userAgent, contentDisposition, mimeType) }
@@ -267,10 +266,6 @@ class WebViewBridge(private val activity: MainActivity) {
             activity.requestStoragePermission(download)
         } else {
             download()
-        }
-        val page = webView.url
-        if ((kind == "child" || kind == "grandchild") && (page.isNullOrEmpty() || page == "about:blank")) {
-            activity.invokeDart("closeWindow", kind)
         }
     }
 
@@ -307,6 +302,7 @@ class WebViewBridge(private val activity: MainActivity) {
     /**
      * 링크 처리만 원본대로 하고 나머지는 플러그인 클라이언트(Dart 이벤트)로 넘긴다.
      * 본문 이동 시작(navigate), 방문 기록 갱신(committed), 첫 화면(visible)은 따로 알린다.
+     * navigate의 `byUser`는 사용자가 누른 이동인지(서버 리디렉션·스크립트 이동이 아님)다.
      */
     private inner class ShellWebViewClient(
         private val id: Long,
@@ -316,7 +312,10 @@ class WebViewBridge(private val activity: MainActivity) {
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             if (overrideUrl(kind, request.url.toString())) return true
             val handled = inner.shouldOverrideUrlLoading(view, request)
-            if (!handled && request.isForMainFrame) event(id, "navigate", request.url.toString())
+            if (!handled && request.isForMainFrame) {
+                val byUser = request.hasGesture() && !request.isRedirect
+                event(id, "navigate", request.url.toString(), mapOf("byUser" to byUser))
+            }
             return handled
         }
 
@@ -396,6 +395,7 @@ class WebViewBridge(private val activity: MainActivity) {
      * 받으므로 그 클래스를 상속한다.
      */
     private inner class ShellChromeClient(
+        private val id: Long,
         private val kind: String,
         private val inner: WebChromeClient,
     ) : WebChromeClientProxyApi.SecureWebChromeClient() {
@@ -410,7 +410,7 @@ class WebViewBridge(private val activity: MainActivity) {
 
         override fun onCloseWindow(window: WebView) {
             if (kind == "child" || kind == "grandchild") {
-                activity.invokeDart("closeWindow", kind)
+                activity.invokeDart("closeWindow", id)
             } else {
                 inner.onCloseWindow(window)
             }

@@ -20,8 +20,12 @@ abstract interface class FullscreenHost {
 /// 개선판에서는 본문 프레임 불러오기 상태([PageLoad])를 웹뷰마다 기억해서 로딩 표시와 연결
 /// 안내를 정한다(통합본 3-31, 1-9, 6-10).
 class WebEntry {
-  WebEntry._(this.kind, this.controller, VoidCallback onChanged)
-    : _load = PageLoad(onChanged);
+  WebEntry._(this.kind, this.controller, VoidCallback onChanged) {
+    _load = PageLoad(
+      onChanged,
+      onClearHistory: () => NativeBridge.clearHistory(id),
+    );
+  }
 
   /// 연결 안내를 띄울 본문 프레임 오류(연결 자체가 안 된 경우).
   static const Set<WebResourceErrorType> connectionErrors =
@@ -43,7 +47,10 @@ class WebEntry {
   /// `main`, `popup`, `child`, `grandchild`
   final String kind;
   final WebViewController controller;
-  final PageLoad _load;
+  late final PageLoad _load;
+
+  /// 페이지 없이 내려받기만 했을 때([create]의 `onDownloadOnly`).
+  void Function(WebEntry entry)? _onDownloadOnly;
 
   /// RoundedWebView 모서리(팝업만 사용). 새로 만들면 네 모서리 모두 둥글다.
   bool topLeft = true;
@@ -75,17 +82,21 @@ class WebEntry {
   ///
   /// [onChanged]는 로딩 표시나 연결 안내가 바뀔 때, [onPageFinished]는 원본처럼 페이지가 끝날 때
   /// 불린다. [fullscreen]은 동영상 전체 화면(`onShowCustomView`)을 맡는다(통합본 6-11).
+  /// [onDownloadOnly]는 `window.open`으로 열린 창이 페이지 없이 내려받기만 했을 때 불린다
+  /// ([closeWindowAfterDownload]).
   static Future<WebEntry> create(
     String kind, {
     required VoidCallback onChanged,
     required FullscreenHost fullscreen,
     void Function(String url)? onPageFinished,
+    void Function(WebEntry entry)? onDownloadOnly,
   }) async {
     final WebViewController controller =
         WebViewController.fromPlatformCreationParams(
           const PlatformWebViewControllerCreationParams(),
         );
-    final WebEntry entry = WebEntry._(kind, controller, onChanged);
+    final WebEntry entry = WebEntry._(kind, controller, onChanged)
+      .._onDownloadOnly = onDownloadOnly;
     final PageLoad load = entry._load;
     await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
     await controller.setNavigationDelegate(
@@ -93,10 +104,6 @@ class WebEntry {
         onPageStarted: load.pageStarted,
         onPageFinished: (String url) {
           load.pageFinished(url);
-          if (entry._clearHistoryWhenDone && load.ownLoadDone) {
-            entry._clearHistoryWhenDone = false;
-            NativeBridge.clearHistory(entry.id);
-          }
           onPageFinished?.call(url);
         },
         onProgress: load.progress,
@@ -119,29 +126,30 @@ class WebEntry {
   static void handleNativeEvent(Map<Object?, Object?> event) {
     final WebEntry? entry = _byId[event['id']]?.target;
     if (entry == null) return;
+    final String? url = event['url'] as String?;
     switch (event['type']) {
       case 'navigate':
-        entry._load.navigate(event['url'] as String?);
+        entry._load.navigate(url, byUser: event['byUser'] == true);
       case 'committed':
-        entry._load.committed();
+        entry._load.committed(url);
       case 'visible':
+        entry._load.visible(url);
       case 'download':
         entry._load.settle();
+        if (closeWindowAfterDownload(entry.kind, entry._load)) {
+          entry._onDownloadOnly?.call(entry);
+        }
     }
   }
 
-  /// 이번에 불러온 페이지가 끝나면 방문 기록을 지울지.
-  bool _clearHistoryWhenDone = false;
-
   /// `loadUrl(url, extraHeaders)`. [clearHistoryWhenDone]이면 이 페이지가 오류 없이 끝난 뒤
-  /// 방문 기록을 지워서, 뒤로 키가 이전 페이지로 돌아가지 않는다.
+  /// 방문 기록을 지워서, 뒤로 키가 이전 페이지로 돌아가지 않는다. 지우는 규칙은 [PageLoad].
   void loadUrl(
     String url,
     Map<String, String> headers, {
     bool clearHistoryWhenDone = false,
   }) {
-    _clearHistoryWhenDone = clearHistoryWhenDone;
-    _load.ownLoad(url, headers);
+    _load.ownLoad(url, headers, clearHistory: clearHistoryWhenDone);
     NativeBridge.loadUrl(id, url, headers);
   }
 
@@ -175,6 +183,7 @@ class WebEntry {
   }
 
   Future<void> goBack() async {
+    _load.goBack();
     try {
       await controller.goBack();
     } catch (_) {}

@@ -159,7 +159,7 @@ class _MainScreenState extends State<MainScreen>
     });
     NativeBridge.on(
       'closeWindow',
-      (MethodCall call) async => _closeWindow(call.arguments as String),
+      (MethodCall call) async => _closeWindow(call.arguments as int),
     );
     NativeBridge.on(
       'webEvent',
@@ -741,10 +741,20 @@ class _MainScreenState extends State<MainScreen>
     _refresh();
   }
 
-  /// `Z0()`: 팝업 웹뷰를 새로 만들어 바꾼다. 같은 틀에 있는 자식·손자 창은 그대로 둔다.
+  /// `Z0()`: 팝업 웹뷰를 새로 만들어 바꾼다.
+  ///
+  /// 원본은 이전 팝업 웹뷰를 틀에서 빼기만 하고, 그 팝업에서 열린 자식·손자 창은 틀에 그대로
+  /// 두었다(새 팝업 아래에 가려진 채 뒤로 키를 먼저 받았다). 개선판은 이전 팝업과 그 창들을 틀에서
+  /// 빼고 해제한다(통합본 9-5).
   Future<void> _z0() async {
+    for (final WebEntry entry in _frame.toList()) {
+      if (entry.kind != 'popup') _removeWindow(entry);
+    }
     final WebEntry? old = _popup;
-    if (old != null) _frame.remove(old);
+    if (old != null) {
+      _frame.remove(old);
+      _destroyAfterFrame(old);
+    }
     final WebEntry entry = await WebEntry.create(
       'popup',
       onChanged: _refresh,
@@ -1191,6 +1201,9 @@ class _MainScreenState extends State<MainScreen>
           _queue = _queue.then((_) => _y0()).catchError((Object _) {});
         }
       },
+      // 첨부파일처럼 내려받기만 하고 그린 페이지가 없는 창은 바로 닫는다. 원본은 빈 창이 남아
+      // 팝업이 하얗게 보였고, 뒤로 키 한 번에 공지 팝업까지 닫혔다.
+      onDownloadOnly: _removeWindow,
     );
     if (isChild) {
       _child = entry;
@@ -1202,26 +1215,42 @@ class _MainScreenState extends State<MainScreen>
     await NativeBridge.attachWindow(token, entry.id);
   }
 
-  /// 자식·손자 창의 `window.close()`(Kotlin `onCloseWindow`).
+  /// 자식·손자 창의 `window.close()`(Kotlin `onCloseWindow`, 닫힌 창의 웹뷰 id).
   ///
   /// 원본은 자식 창이 닫히면 팝업도 닫았다(HANDOFF 5.11). 그래서 ECAMPUS처럼 페이지가 자식 창
   /// (`panopto_login_popup`)을 열었다가 스스로 닫으면 팝업 전체가 열리자마자 닫혔다. 개선판은
-  /// 자식 창만 지우고 팝업은 남긴다. 내려받기만 하고 보여 줄 페이지가 없는 자식 창도 Kotlin이
-  /// 이 경로로 닫는다(첨부파일).
-  Future<void> _closeWindow(String kind) async {
-    if (kind == 'child') {
-      _childOpen = false;
-      final WebEntry? child = _child;
-      if (child != null) _frame.remove(child);
-      _refresh();
-    } else {
-      final WebEntry? grandchild = _grandchild;
-      if (grandchild != null) {
-        _frame.remove(grandchild);
-        _refresh();
-        NativeBridge.destroyWebView(grandchild.id);
-      }
+  /// 닫힌 창만 지우고 팝업은 남긴다.
+  Future<void> _closeWindow(int id) async {
+    for (final WebEntry entry in _frame.toList()) {
+      if (entry.kind != 'popup' && entry.id == id) _removeWindow(entry);
     }
+  }
+
+  /// 자식·손자 창 하나를 틀에서 빼고 웹뷰를 해제한다.
+  ///
+  /// 원본은 손자 창만 해제하고 자식 창은 틀에서 빼기만 했다. 개선판은 자식 창도 해제한다
+  /// (통합본 9-5: 해제되지 않은 웹뷰가 ECAMPUS·첨부 내려받기마다 쌓였다). 닫힌 창은 뒤로 키도
+  /// 받지 않는다.
+  void _removeWindow(WebEntry entry) {
+    if (!_frame.remove(entry)) return; // 이미 닫혔다
+    if (identical(entry, _child)) {
+      _child = null;
+      _childOpen = false;
+    }
+    if (identical(entry, _grandchild)) {
+      _grandchild = null;
+      _grandchildOpen = false;
+    }
+    _refresh();
+    _destroyAfterFrame(entry);
+  }
+
+  /// 틀에서 뺀 웹뷰를 다음 화면이 그려진 뒤(화면에서 떨어진 뒤) 해제한다. 화면에 붙은 채로
+  /// 해제하면 WebView가 경고를 남긴다.
+  void _destroyAfterFrame(WebEntry entry) {
+    WidgetsBinding.instance.endOfFrame.then(
+      (_) => NativeBridge.destroyWebView(entry.id),
+    );
   }
 
   // ======================================================================
