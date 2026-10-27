@@ -47,6 +47,34 @@ void main() {
       );
     });
 
+    test('전자출결의 실제 주소(학교 SSO, RelayState가 출결) → 출결 탭, SSO 주소 그대로', () {
+      const String sso =
+          'https://sso.ut.ac.kr/svc/tk/AuthFederate.eps?id=abc&targetId=attend'
+          '&t=TOKEN&RelayState=https://attend.ut.ac.kr/exsignon/sso/sso_index.jsp';
+      final String json = commands(<Map<String, Object?>>[
+        <String, Object?>{
+          'command': 'browser',
+          'config': <String, Object?>{'preCondition': null, 'url': sso},
+        },
+      ]);
+      expect(tabRouteOf(json), const TabRoute(WebTabKind.attend, sso));
+    });
+
+    test('SSO 주소라도 RelayState가 탭 주소가 아니면 null', () {
+      expect(
+        tabForUrl(
+          'https://sso.ut.ac.kr/svc/tk/AuthFederate.eps?targetId=portal'
+          '&RelayState=https://portal.ut.ac.kr/',
+        ),
+        isNull,
+      );
+      expect(tabForUrl('https://sso.ut.ac.kr/svc/tk/AuthFederate.eps'), isNull);
+      expect(
+        tabForUrl('https://sso.ut.ac.kr/a?RelayState=https://sso.ut.ac.kr/b'),
+        isNull,
+      );
+    });
+
     test('도서관 full 팝업 → 도서관 탭', () {
       expect(
         tabRouteOf(libraryPopup),

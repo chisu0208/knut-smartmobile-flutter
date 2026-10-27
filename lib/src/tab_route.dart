@@ -6,8 +6,10 @@ import 'dart:convert';
 /// 메인 페이지의 타일은 `AllytteCommand.callService("SERVICE", id)`로 서버 서비스를 부르고, 서버가
 /// 앱 명령으로 답한다(`https://mobile.ut.ac.kr/js/allytte-command.js`). 로그인한 메인에서 확인한
 /// 서비스 id와 응답(로컬 세션, 2026-10-27):
-/// - 전자출결 `9`: `browser` 명령, Chrome에서 로그인된 채 `attend.ut.ac.kr`이 열림
-/// - 도서관 `e`: full 팝업(`webview`/`popup`)으로 `https://mchains.ut.ac.kr/index.ax`
+/// - 전자출결 `9`: `browser` 명령. 주소는 학교 통합 로그인(SSO)
+///   `https://sso.ut.ac.kr/svc/tk/AuthFederate.eps?id=…&targetId=attend&t=…&RelayState=https://attend.ut.ac.kr/exsignon/sso/sso_index.jsp`이고,
+///   로그인을 넘긴 뒤 `attend.ut.ac.kr`로 간다([tabForUrl])
+/// - 도서관 `e`: full 팝업(`webview`/`popup`)으로 `https://mchains.ut.ac.kr/?_asid=…`
 enum WebTabKind {
   attend(
     title: '출결',
@@ -60,7 +62,13 @@ class TabRoute {
   String toString() => 'TabRoute(${tab.name}, $url)';
 }
 
+/// 학교 통합 로그인(SSO) 호스트. 이 주소는 로그인을 넘긴 뒤 `RelayState`의 주소로 간다.
+const String ssoHost = 'sso.ut.ac.kr';
+
 /// [url]의 호스트가 출결·도서관 탭 주소이면 그 탭.
+///
+/// 학교 통합 로그인 주소([ssoHost])이면 로그인 뒤 갈 주소(`RelayState`)로 판단한다. 전자출결은 서버가
+/// 이 주소를 준다(위 [WebTabKind] 설명).
 WebTabKind? tabForUrl(String url) {
   final Uri? uri = Uri.tryParse(url.trim());
   if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http')) {
@@ -69,6 +77,14 @@ WebTabKind? tabForUrl(String url) {
   final String host = uri.host.toLowerCase();
   for (final WebTabKind kind in WebTabKind.values) {
     if (host == kind.host) return kind;
+  }
+  if (host == ssoHost) {
+    final String? relay = uri.queryParameters['RelayState'];
+    final Uri? relayUri = relay == null ? null : Uri.tryParse(relay.trim());
+    // 다시 SSO를 가리키는 주소는 따라가지 않는다.
+    if (relayUri != null && relayUri.host.toLowerCase() != ssoHost) {
+      return tabForUrl(relay!);
+    }
   }
   return null;
 }
