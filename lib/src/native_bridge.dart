@@ -75,6 +75,9 @@ class NativeBridge {
   static const String coarseLocation =
       'android.permission.ACCESS_COARSE_LOCATION';
 
+  /// 근처 기기 검색(Android 12 이상, 비콘).
+  static const String bluetoothScan = 'android.permission.BLUETOOTH_SCAN';
+
   /// 모두 허용돼 있으면 true.
   static Future<bool> checkPermissions(List<String> permissions) async =>
       await _call<bool>('checkPermissions', permissions) ?? false;

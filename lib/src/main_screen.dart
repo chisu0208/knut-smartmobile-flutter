@@ -1095,14 +1095,19 @@ class _MainScreenState extends State<MainScreen>
   }
 
   /// 원본은 첫 실행에 받아 둔 대략 위치 권한으로 비콘을 찾았다. 개선판은 시작할 때 권한을 묻지
-  /// 않으므로 비콘을 찾을 때 같은 권한을 요청한다. 동작(거부해도 검색 후 전송)은 원본 그대로다.
+  /// 않으므로 비콘을 찾을 때 권한을 요청한다. 동작(거부해도 검색 후 전송)은 원본 그대로다.
+  ///
+  /// 원본은 대략 위치만 받아서 Android 10 이상(정밀 위치가 있어야 BLE 검색 결과가 옴)과 Android
+  /// 12 이상(근처 기기 `BLUETOOTH_SCAN`이 있어야 검색됨)에서 비콘을 찾지 못했다. 개선판은 둘 다
+  /// 요청한다. 정밀 위치는 Android 12 이상에서 대략 위치와 함께 요청해야 해서 둘을 같이 묻는다.
   Future<void> _startBeacon() async {
-    if (!await NativeBridge.checkPermissions(const <String>[
+    final List<String> permissions = <String>[
+      if (_info.sdkInt >= 31) NativeBridge.bluetoothScan,
+      NativeBridge.fineLocation,
       NativeBridge.coarseLocation,
-    ])) {
-      await NativeBridge.requestPermissions(const <String>[
-        NativeBridge.coarseLocation,
-      ]);
+    ];
+    if (!await NativeBridge.checkPermissions(permissions)) {
+      await NativeBridge.requestPermissions(permissions);
     }
     NativeBridge.beaconStart();
     Timer(const Duration(seconds: 5), _z0Beacon);
