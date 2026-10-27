@@ -61,9 +61,6 @@ class WebViewBridge(private val activity: MainActivity) {
     /** 설정을 입힌 웹뷰들. 휴대폰 글자 크기를 바꾸면 모두 다시 맞춘다. */
     private val installed = LinkedHashSet<Long>()
 
-    /** 웹 글자 크기(%). Dart가 휴대폰 글자 크기 설정에서 정해 보낸다(`web_entry.dart` `textZoomFor`). */
-    private var textZoom = 100
-
     private fun webView(id: Long): WebView? {
         val binding = activity.pluginBinding ?: return null
         return WebViewFlutterAndroidExternalApi.getWebView(binding, id)
@@ -88,7 +85,7 @@ class WebViewBridge(private val activity: MainActivity) {
         s.javaScriptEnabled = true
         s.domStorageEnabled = true
         // 원본은 85% 고정이었다. 개선판은 휴대폰 글자 크기 설정을 상한까지 따른다(통합본 5-1).
-        this.textZoom = textZoom
+        // 값은 Dart가 정해 보낸다(`web_entry.dart` `textZoomFor`).
         s.textZoom = textZoom
         installed.add(id)
         when (kind) {
@@ -157,7 +154,6 @@ class WebViewBridge(private val activity: MainActivity) {
 
     /** 앱이 떠 있는 동안 글자 크기 설정을 바꾸면 열려 있는 웹뷰에도 바로 반영한다. */
     fun setTextZoom(zoom: Int) {
-        textZoom = zoom
         installed.toList().forEach { id ->
             val webView = webView(id)
             if (webView == null) installed.remove(id) else webView.settings.textZoom = zoom
@@ -425,17 +421,17 @@ class WebViewBridge(private val activity: MainActivity) {
 
         override fun onJsAlert(view: WebView, url: String?, message: String?, result: JsResult): Boolean {
             // 원본은 로딩 표시(입력을 막는 창)를 먼저 걷었다. 개선판의 로딩 표시는 입력을 막지 않는다.
-            AlertDialog.Builder(activity)
+            // 원본은 뒤로 키에 확인으로 답만 하고 키를 먹어서 창이 닫히지 않았다(확인을 눌러야
+            // 닫힘). 개선판은 뒤로 키로 창을 닫고 확인으로 한 번만 답한다. 바깥 터치로는 원본처럼
+            // 닫히지 않는다. `확인`을 누르면 취소가 아니라 닫기라서 답이 두 번 가지 않는다.
+            val dialog = AlertDialog.Builder(activity)
                 .setTitle("")
                 .setMessage(message)
-                .setOnKeyListener { _, keyCode, _ ->
-                    if (keyCode == KeyEvent.KEYCODE_BACK) result.confirm()
-                    true
-                }
                 .setPositiveButton("확인") { _, _ -> result.confirm() }
-                .setCancelable(false)
+                .setOnCancelListener { result.confirm() }
                 .create()
-                .show()
+            dialog.setCanceledOnTouchOutside(false)
+            dialog.show()
             return true
         }
 
