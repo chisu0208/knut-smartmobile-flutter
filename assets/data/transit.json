@@ -1,0 +1,723 @@
+{
+  "title": "버스 시간표",
+  "fetchedAt": "2026-10-27",
+  "validFrom": "2026-09-01",
+  "validTo": "2026-12-21",
+  "notes": [
+    "학교 홈페이지 통학정보(시내버스, 통학버스)의 시간표입니다. 교통 상황에 따라 시간이 바뀔 수 있습니다.",
+    "운행 기간(periods) 밖과 공휴일(holidays.json)에는 운행하지 않는 것으로 계산합니다."
+  ],
+  "campuses": [
+    {
+      "id": "chungju",
+      "name": "충주캠퍼스",
+      "short": "충주",
+      "map": {
+        "title": "길찾기",
+        "url": "https://direction.ut.ac.kr/service/mobile/page/index?divisionId=1"
+      }
+    },
+    {
+      "id": "jeungpyeong",
+      "name": "증평캠퍼스",
+      "short": "증평",
+      "map": {
+        "title": "캠퍼스 지도",
+        "url": "https://www.ut.ac.kr/prog/campusMap/kor/sub01_07_02/list.do?campus_code=dorm2"
+      },
+      "cityGuide": [
+        "증평터미널 → 증평캠퍼스(5분)",
+        "증평역 → 증평캠퍼스(5분)"
+      ],
+      "cityGuideSource": "https://www.ut.ac.kr/kor/sub01_06_02.do"
+    },
+    {
+      "id": "uiwang",
+      "name": "의왕캠퍼스",
+      "short": "의왕",
+      "map": {
+        "title": "캠퍼스 지도",
+        "url": "https://www.ut.ac.kr/prog/campusMap/kor/sub01_07_02/list.do?campus_code=dorm3"
+      },
+      "cityGuide": [
+        "지하철 1호선 이용 → 의왕역(국립한국교통대학교)에서 하차 → 시내버스 1-1, 1-2, 1-5, 5번 이용(약 5분 소요) → 국립한국교통대학교 하차"
+      ],
+      "cityGuideSource": "https://www.ut.ac.kr/kor/sub01_06_03.do"
+    }
+  ],
+  "services": [
+    {
+      "id": "chungju-city",
+      "kind": "city",
+      "campuses": [
+        "chungju"
+      ],
+      "title": "시내버스 999·700",
+      "source": "https://www.ut.ac.kr/kor/sub06_06_03.do",
+      "calendar": {
+        "weekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "skipHolidays": true,
+        "periods": [
+          {
+            "start": "2026-03-03",
+            "end": "2026-06-22"
+          },
+          {
+            "start": "2026-09-01",
+            "end": "2026-12-21"
+          }
+        ]
+      },
+      "dayLabel": "평일만 운행",
+      "notes": [
+        "토, 일, 공휴일, 교통대 방학은 운행안함",
+        "19:20 교통대 출발은 차고지 직행이라 뺐습니다."
+      ],
+      "directions": [
+        {
+          "id": "from-campus",
+          "label": "교통대 → 터미널",
+          "from": "교통대",
+          "to": "시외터미널",
+          "trips": [
+            {
+              "line": "999",
+              "depart": "08:42",
+              "arrive": "09:00"
+            },
+            {
+              "line": "999",
+              "depart": "09:05",
+              "arrive": "09:23"
+            },
+            {
+              "line": "999",
+              "depart": "09:28",
+              "arrive": "09:46"
+            },
+            {
+              "line": "999",
+              "depart": "09:51",
+              "arrive": "10:09"
+            },
+            {
+              "line": "999",
+              "depart": "10:14",
+              "arrive": "10:32"
+            },
+            {
+              "line": "999",
+              "depart": "10:37",
+              "arrive": "10:55"
+            },
+            {
+              "line": "999",
+              "depart": "11:00",
+              "arrive": "11:18"
+            },
+            {
+              "line": "999",
+              "depart": "11:23",
+              "arrive": "11:41"
+            },
+            {
+              "line": "999",
+              "depart": "11:46",
+              "arrive": "12:04"
+            },
+            {
+              "line": "999",
+              "depart": "12:09",
+              "arrive": "12:27"
+            },
+            {
+              "line": "999",
+              "depart": "12:32",
+              "arrive": "12:50"
+            },
+            {
+              "line": "700 순환",
+              "depart": "12:55",
+              "arrive": "13:43",
+              "note": "건국대·풍경채·영은교회·신원8차·연수초교사거리·한스타워 경유"
+            },
+            {
+              "line": "999",
+              "depart": "14:47",
+              "arrive": "15:05"
+            },
+            {
+              "line": "999",
+              "depart": "15:10",
+              "arrive": "15:28"
+            },
+            {
+              "line": "999",
+              "depart": "15:32",
+              "arrive": "15:50"
+            },
+            {
+              "line": "999",
+              "depart": "15:55",
+              "arrive": "16:13"
+            },
+            {
+              "line": "999",
+              "depart": "16:18",
+              "arrive": "16:36"
+            },
+            {
+              "line": "999",
+              "depart": "16:41",
+              "arrive": "16:59"
+            },
+            {
+              "line": "700 순환",
+              "depart": "17:00",
+              "arrive": "17:48",
+              "note": "건국대·풍경채·영은교회·신원8차·연수초교사거리·한스타워 경유"
+            },
+            {
+              "line": "999",
+              "depart": "17:27",
+              "arrive": "17:45"
+            },
+            {
+              "line": "999",
+              "depart": "18:12",
+              "arrive": "18:30"
+            },
+            {
+              "line": "700 순환",
+              "depart": "18:15",
+              "arrive": "19:03",
+              "note": "건국대·풍경채·영은교회·신원8차·연수초교사거리·한스타워 경유"
+            },
+            {
+              "line": "700 순환",
+              "depart": "19:25",
+              "arrive": "20:13",
+              "note": "건국대·풍경채·영은교회·신원8차·연수초교사거리·한스타워 경유"
+            },
+            {
+              "line": "999",
+              "depart": "20:30",
+              "arrive": "20:48"
+            }
+          ]
+        },
+        {
+          "id": "to-campus",
+          "label": "터미널 → 교통대",
+          "from": "시외터미널",
+          "to": "교통대",
+          "trips": [
+            {
+              "line": "999",
+              "depart": "08:15",
+              "arrive": "08:33"
+            },
+            {
+              "line": "999",
+              "depart": "08:38",
+              "arrive": "08:56"
+            },
+            {
+              "line": "999",
+              "depart": "09:01",
+              "arrive": "09:19"
+            },
+            {
+              "line": "999",
+              "depart": "09:24",
+              "arrive": "09:42"
+            },
+            {
+              "line": "999",
+              "depart": "09:47",
+              "arrive": "10:05"
+            },
+            {
+              "line": "999",
+              "depart": "10:10",
+              "arrive": "10:28"
+            },
+            {
+              "line": "999",
+              "depart": "10:33",
+              "arrive": "10:51"
+            },
+            {
+              "line": "999",
+              "depart": "10:56",
+              "arrive": "11:14"
+            },
+            {
+              "line": "999",
+              "depart": "11:19",
+              "arrive": "11:37"
+            },
+            {
+              "line": "999",
+              "depart": "11:42",
+              "arrive": "12:00"
+            },
+            {
+              "line": "999",
+              "depart": "12:05",
+              "arrive": "12:23"
+            },
+            {
+              "line": "999",
+              "depart": "12:28",
+              "arrive": "12:46"
+            },
+            {
+              "line": "999",
+              "depart": "14:20",
+              "arrive": "14:38"
+            },
+            {
+              "line": "999",
+              "depart": "15:05",
+              "arrive": "15:23"
+            },
+            {
+              "line": "999",
+              "depart": "15:28",
+              "arrive": "15:46"
+            },
+            {
+              "line": "999",
+              "depart": "15:51",
+              "arrive": "16:09"
+            },
+            {
+              "line": "999",
+              "depart": "16:14",
+              "arrive": "16:32"
+            },
+            {
+              "line": "999",
+              "depart": "16:37",
+              "arrive": "16:55"
+            },
+            {
+              "line": "999",
+              "depart": "17:00",
+              "arrive": "17:18"
+            },
+            {
+              "line": "999",
+              "depart": "17:45",
+              "arrive": "18:03"
+            },
+            {
+              "line": "700 순환",
+              "depart": "17:48",
+              "arrive": "18:05",
+              "note": "건대정문 경유"
+            },
+            {
+              "line": "700 순환",
+              "depart": "19:03",
+              "arrive": "19:20",
+              "note": "건대정문 경유"
+            },
+            {
+              "line": "700 순환",
+              "depart": "20:13",
+              "arrive": "20:30",
+              "note": "건대정문 경유"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "commute-cheongju",
+      "kind": "commute",
+      "campuses": [
+        "chungju"
+      ],
+      "chip": "청주",
+      "title": "청주가경터미널 ⇄ 신흥고 ⇄ 충주캠퍼스",
+      "source": "https://www.ut.ac.kr/kor/sub06_06_01.do",
+      "calendar": {
+        "weekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "skipHolidays": true,
+        "periods": [
+          {
+            "start": "2026-03-03",
+            "end": "2026-06-19"
+          },
+          {
+            "start": "2026-09-01",
+            "end": "2026-12-21"
+          }
+        ]
+      },
+      "periodText": "[1학기] 2026. 3. 3.(화) ~ 2026. 6. 19.(금), [2학기] 2026. 9. 1.(화) ~ 2026. 12. 21.(월), 방학 중 운행 안 함",
+      "fare": "편도 3,500원",
+      "payment": "PAYCO 모바일 승차권",
+      "notes": [
+        "교통 상황에 따라 시간이 바뀔 수 있어요"
+      ],
+      "toCampus": [
+        {
+          "name": "청주가경터미널",
+          "time": "07:15"
+        },
+        {
+          "name": "청주신흥고",
+          "time": "07:45"
+        },
+        {
+          "name": "충주캠퍼스 노천극장 건너편",
+          "time": "08:45"
+        },
+        {
+          "name": "스마트ICT관",
+          "time": "08:48"
+        },
+        {
+          "name": "중원생활관",
+          "time": "08:53"
+        }
+      ],
+      "fromCampus": [
+        {
+          "name": "충주캠퍼스 노천극장 앞",
+          "time": "18:10"
+        },
+        {
+          "name": "청주신흥고",
+          "time": "19:00"
+        },
+        {
+          "name": "청주가경터미널",
+          "time": "19:25"
+        }
+      ]
+    },
+    {
+      "id": "commute-icheon",
+      "kind": "commute",
+      "campuses": [
+        "chungju"
+      ],
+      "chip": "이천",
+      "title": "이천 부발역 ⇄ 한국교통대학교 충주캠퍼스",
+      "source": "https://www.ut.ac.kr/kor/sub06_06_01.do",
+      "calendar": {
+        "weekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "skipHolidays": true,
+        "periods": [
+          {
+            "start": "2026-03-03",
+            "end": "2026-06-19"
+          },
+          {
+            "start": "2026-09-01",
+            "end": "2026-12-21"
+          }
+        ]
+      },
+      "periodText": "[1학기] 2026. 3. 3.(화) ~ 2026. 6. 19.(금), [2학기] 2026. 9. 1.(화) ~ 2026. 12. 21.(월), 방학 중 운행 안 함",
+      "fare": "편도 3,500원",
+      "payment": "PAYCO 모바일 승차권",
+      "notes": [
+        "스마트ICT관 시각은 학교 안내에 적힌 값(08:10)이 순서에 맞지 않아 비웠습니다."
+      ],
+      "toCampus": [
+        {
+          "name": "부발역",
+          "time": "07:50"
+        },
+        {
+          "name": "충주캠퍼스 노천극장 건너편",
+          "time": "08:36"
+        },
+        {
+          "name": "스마트ICT관",
+          "time": null
+        },
+        {
+          "name": "중원생활관",
+          "time": "08:45"
+        }
+      ],
+      "fromCampus": [
+        {
+          "name": "한국교통대학교 충주캠퍼스 정문 옆 버스승강장 앞",
+          "time": "18:10"
+        },
+        {
+          "name": "부발역",
+          "time": "18:50"
+        }
+      ]
+    },
+    {
+      "id": "commute-chungju-city",
+      "kind": "commute",
+      "campuses": [
+        "chungju"
+      ],
+      "chip": "충주 시내",
+      "title": "충주터미널 ⇄ 충주역 ⇄ 충주캠퍼스",
+      "source": "https://www.ut.ac.kr/kor/sub06_06_01.do",
+      "calendar": {
+        "weekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "skipHolidays": true,
+        "periods": [
+          {
+            "start": "2026-03-03",
+            "end": "2026-06-19"
+          },
+          {
+            "start": "2026-09-01",
+            "end": "2026-12-21"
+          }
+        ]
+      },
+      "periodText": "[1학기] 2026. 3. 3.(화) ~ 2026. 6. 19.(금), [2학기] 2026. 9. 1.(화) ~ 2026. 12. 21.(월), 방학 중 운행 안 함",
+      "fare": "무료",
+      "payment": null,
+      "notes": [],
+      "toCampus": [
+        {
+          "name": "충주터미널",
+          "time": "08:37"
+        },
+        {
+          "name": "충주역",
+          "time": "08:40"
+        },
+        {
+          "name": "충주캠퍼스 대학로",
+          "time": "08:55"
+        },
+        {
+          "name": "노천극장 건너편",
+          "time": "08:57"
+        },
+        {
+          "name": "화학생명관 건너편",
+          "time": "08:58"
+        },
+        {
+          "name": "스마트ICT관",
+          "time": "09:00"
+        },
+        {
+          "name": "대원생활관",
+          "time": "09:03"
+        },
+        {
+          "name": "중원생활관",
+          "time": "09:05"
+        }
+      ],
+      "fromCampus": [
+        {
+          "name": "중원생활관",
+          "time": "17:50"
+        },
+        {
+          "name": "대원생활관",
+          "time": "17:52"
+        },
+        {
+          "name": "스마트ICT관",
+          "time": "17:55"
+        },
+        {
+          "name": "화학생명관",
+          "time": "17:57"
+        },
+        {
+          "name": "노천극장앞",
+          "time": "17:58"
+        },
+        {
+          "name": "충주캠퍼스대학로",
+          "time": "18:00"
+        },
+        {
+          "name": "충주역",
+          "time": "18:25"
+        },
+        {
+          "name": "충주터미널",
+          "time": "18:30"
+        }
+      ]
+    },
+    {
+      "id": "campus-shuttle",
+      "kind": "shuttle",
+      "campuses": [
+        "chungju",
+        "jeungpyeong",
+        "uiwang"
+      ],
+      "title": "캠퍼스 순환버스",
+      "source": "https://www.ut.ac.kr/kor/sub06_06_01.do",
+      "calendar": {
+        "weekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "skipHolidays": true,
+        "periods": [
+          {
+            "start": "2026-03-03",
+            "end": "2026-06-22"
+          },
+          {
+            "start": "2026-09-01",
+            "end": "2026-12-21"
+          }
+        ]
+      },
+      "dayLabel": "평일 학기 중 운행",
+      "notes": [
+        "캠퍼스별 출발장소 : 충주(대학원동 앞), 증평(청아관 승강장), 의왕 (본관)",
+        "통학버스 및 캠퍼스 순환버스는 학기 중에만 운행(방학 중 미운행)",
+        "도착 시각이 없는 차는 학교 안내에 출발 시각만 있습니다."
+      ],
+      "directions": [
+        {
+          "id": "chungju-jeungpyeong",
+          "label": "충주 → 증평",
+          "fromCampus": "chungju",
+          "toCampus": "jeungpyeong",
+          "from": "충주(대학원동)",
+          "to": "증평(청아관)",
+          "trips": [
+            {
+              "line": "71마6862",
+              "depart": "09:10",
+              "arrive": "10:00",
+              "note": "증평군청 09:40 경유"
+            },
+            {
+              "line": "71마6552",
+              "depart": "16:50",
+              "arrive": "17:45",
+              "note": "증평군청 17:20 경유"
+            }
+          ]
+        },
+        {
+          "id": "jeungpyeong-chungju",
+          "label": "증평 → 충주",
+          "fromCampus": "jeungpyeong",
+          "toCampus": "chungju",
+          "from": "증평(청아관)",
+          "to": "충주(대학원동)",
+          "trips": [
+            {
+              "line": "71마6552",
+              "depart": "09:10",
+              "arrive": "10:00",
+              "note": "증평군청 09:20 경유"
+            },
+            {
+              "line": "71마6862",
+              "depart": "16:50",
+              "arrive": "17:45",
+              "note": "증평터미널 17:00 경유"
+            }
+          ]
+        },
+        {
+          "id": "chungju-uiwang",
+          "label": "충주 → 의왕",
+          "fromCampus": "chungju",
+          "toCampus": "uiwang",
+          "from": "충주(대학원동)",
+          "to": "의왕(전산관)",
+          "trips": [
+            {
+              "line": "71마6866",
+              "depart": "13:00",
+              "arrive": null,
+              "weekdays": [
+                1,
+                4,
+                5
+              ],
+              "note": "월·목·금만 운행"
+            }
+          ]
+        },
+        {
+          "id": "uiwang-chungju",
+          "label": "의왕 → 충주",
+          "fromCampus": "uiwang",
+          "toCampus": "chungju",
+          "from": "의왕(전산관)",
+          "to": "충주(대학원동)",
+          "trips": [
+            {
+              "line": "71마6866",
+              "depart": "09:00",
+              "arrive": null,
+              "weekdays": [
+                1,
+                4,
+                5
+              ],
+              "note": "월·목·금만 운행"
+            }
+          ]
+        },
+        {
+          "id": "jeungpyeong-local",
+          "label": "증평 관내",
+          "fromCampus": "jeungpyeong",
+          "toCampus": "jeungpyeong",
+          "from": "증평(청아관)",
+          "to": "증평(청아관)",
+          "trips": [
+            {
+              "line": "71마6862",
+              "depart": "13:30",
+              "arrive": "14:00",
+              "note": "증평군청 13:40 경유"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
