@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>전자출결 목업</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=block" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet">
+<style>
+  /* 색: 팀원 도서관 Figma 토큰(KNUT Library) */
+  :root {
+    --primary: #A3162B;
+    --primary-soft: #FBECEE;
+    --ink: #17191E;
+    --sub: #5B6070;
+    --mute: #9AA0AE;
+    --line: #E6E8EE;
+    --bg: #F4F5F8;
+    --green: #0E9F4F;
+    --green-soft: #E3F5EA;
+    --amber: #D97A00;
+    --amber-soft: #FDF0DD;
+    --blue: #2F6FEB;
+    --gray-soft: #EEF0F4;
+    --white: #FFFFFF;
+    --page: #ECEEF3;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+    color: var(--ink);
+    background: var(--page);
+    word-break: keep-all;
+    -webkit-font-smoothing: antialiased;
+  }
+  .ms {
+    font-family: 'Material Symbols Rounded';
+    font-weight: normal; font-style: normal; font-size: 24px; line-height: 1;
+    letter-spacing: normal; text-transform: none; white-space: nowrap; direction: ltr;
+    display: inline-block; font-feature-settings: 'liga';
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  .ms.fill { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* 전체 배치 */
+  .board { padding: 52px 56px 40px; width: 1440px; }
+  .board h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; }
+  .board .sub { margin-top: 8px; font-size: 16px; color: var(--sub); }
+  .row { display: flex; gap: 48px; margin-top: 36px; }
+  .cell { width: 410px; }
+  .cap { margin-top: 20px; font-size: 16px; line-height: 1.55; }
+  .cap b { font-weight: 700; }
+  .cap span { color: var(--sub); }
+  .foot { margin-top: 32px; font-size: 13px; color: var(--sub); line-height: 1.7; }
+
+  /* 폰 틀 */
+  .phone {
+    width: 410px; height: 864px; padding: 10px; border-radius: 52px;
+    background: #16171b; box-shadow: 0 18px 40px rgba(20, 24, 40, .22);
+  }
+  .screen {
+    width: 390px; height: 844px; border-radius: 42px; overflow: hidden;
+    background: var(--bg); display: flex; flex-direction: column; position: relative;
+  }
+  .status { height: 40px; padding: 4px 26px 0; display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 500; flex: none; background: var(--white); }
+  .status .icons { display: flex; gap: 4px; align-items: center; }
+  .status .icons .ms { font-size: 17px; }
+  .content { flex: 1; overflow: hidden; }
+  .appbar { height: 60px; display: flex; align-items: center; gap: 6px; padding: 0 8px 0 20px; background: var(--white); flex: none; }
+  .appbar.back { padding-left: 8px; }
+  .appbar h2 { flex: 1; font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
+  .appbar h2 small { margin-left: 6px; font-size: 13px; font-weight: 500; color: var(--sub); }
+  .icon-btn { width: 44px; height: 44px; border-radius: 22px; display: flex; align-items: center; justify-content: center; color: var(--ink); }
+
+  /* 하단 탭 */
+  .nav { height: 80px; background: var(--white); border-top: 1px solid var(--line); display: flex; flex: none; padding-top: 12px; }
+  .nav div { flex: 1; display: flex; flex-direction: column; align-items: center; font-size: 12px; font-weight: 500; color: var(--sub); }
+  .nav i { width: 64px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
+  .nav .on { color: var(--primary); font-weight: 700; }
+  .nav .on i { background: var(--primary-soft); color: var(--primary); }
+  .gesture { height: 22px; background: var(--white); display: flex; align-items: center; justify-content: center; flex: none; }
+  .gesture::after { content: ''; width: 108px; height: 4px; border-radius: 2px; background: #1a1b21; opacity: .35; }
+
+  .pad { padding: 12px 16px 0; }
+  .card { background: var(--white); border-radius: 18px; }
+
+  /* 상태 색과 아이콘 */
+  .st { display: inline-flex; align-items: center; gap: 3px; height: 24px; padding: 0 8px 0 6px; border-radius: 12px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .st .ms { font-size: 16px; }
+  .st.ok { background: var(--green-soft); color: var(--green); }
+  .st.late { background: var(--amber-soft); color: var(--amber); }
+  .st.abs { background: var(--primary-soft); color: var(--primary); }
+  .st.none { background: var(--gray-soft); color: var(--sub); }
+
+  /* ① 요약 */
+  .rate { display: flex; align-items: center; gap: 16px; padding: 16px 18px; }
+  .ring { width: 84px; height: 84px; border-radius: 42px; flex: none; display: flex; align-items: center; justify-content: center;
+          background: conic-gradient(var(--green) 0 92%, var(--amber) 92% 95%, var(--primary) 95% 97%, var(--line) 97% 100%); }
+  .ring div { width: 66px; height: 66px; border-radius: 33px; background: var(--white); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .ring b { font-size: 20px; font-weight: 900; letter-spacing: -0.5px; }
+  .ring span { font-size: 10px; color: var(--sub); }
+  .counts { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+  .counts div { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--sub); }
+  .counts i { width: 8px; height: 8px; border-radius: 4px; }
+  .counts b { margin-left: auto; font-size: 15px; color: var(--ink); }
+  .warn { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; background: var(--amber-soft); color: #7A4500; font-size: 13px; line-height: 1.45; }
+  .warn .ms { color: var(--amber); font-size: 22px; }
+  .warn b { color: var(--ink); }
+  .sec { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 8px; font-size: 16px; font-weight: 700; }
+  .sec small { font-size: 12px; font-weight: 500; color: var(--sub); }
+  .course { margin: 0 16px 8px; padding: 13px 14px 12px 16px; }
+  .course .top { display: flex; align-items: center; gap: 8px; }
+  .course .top b { flex: 1; font-size: 15px; font-weight: 700; }
+  .course .top .ms { color: var(--mute); font-size: 20px; }
+  .course .meta { margin-top: 2px; font-size: 12px; color: var(--sub); }
+  .bar { margin-top: 10px; height: 8px; border-radius: 4px; overflow: hidden; display: flex; background: var(--line); }
+  .bar i { display: block; height: 100%; }
+  .bar .g { background: var(--green); } .bar .a { background: var(--amber); } .bar .r { background: var(--primary); } .bar .n { background: #C9CDD6; }
+  .tally { margin-top: 8px; display: flex; gap: 12px; font-size: 12px; color: var(--sub); }
+  .tally b { color: var(--ink); font-weight: 700; margin-left: 2px; }
+  .tally .bad b { color: var(--primary); }
+
+  /* ② 과목 상세 */
+  .chips { display: flex; gap: 8px; padding: 12px 16px 4px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 14px; border: 1px solid var(--line); background: var(--white); border-radius: 17px; font-size: 13px; font-weight: 500; color: var(--sub); }
+  .chip.on { background: var(--ink); border-color: var(--ink); color: var(--white); padding-left: 10px; }
+  .chip .ms { font-size: 18px; }
+  .mini { display: flex; gap: 8px; padding: 12px 16px 0; }
+  .mini div { flex: 1; padding: 10px 0 9px; border-radius: 14px; background: var(--white); text-align: center; }
+  .mini b { display: block; font-size: 20px; font-weight: 900; }
+  .mini span { font-size: 12px; color: var(--sub); }
+  .mini .g b { color: var(--green); } .mini .a b { color: var(--amber); } .mini .r b { color: var(--primary); } .mini .n b { color: var(--sub); }
+  .weeks { margin: 10px 16px 0; overflow: hidden; }
+  .wk { display: flex; align-items: center; min-height: 58px; padding: 8px 14px; gap: 12px; }
+  .wk + .wk { border-top: 1px solid var(--line); }
+  .wk .w { width: 92px; flex: none; }
+  .wk .w b { display: block; font-size: 15px; font-weight: 700; }
+  .wk .w span { font-size: 12px; color: var(--sub); }
+  .wk .ss { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+  .wk .s { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--sub); }
+  .wk.today { background: var(--primary-soft); }
+  .wk.today .w b { color: var(--primary); }
+
+  /* ③ 오늘 수업 */
+  .datehead { padding: 14px 20px 6px; display: flex; align-items: baseline; justify-content: space-between; }
+  .datehead strong { font-size: 18px; font-weight: 700; }
+  .datehead span { font-size: 13px; color: var(--sub); }
+  .tl { margin: 6px 16px 0; padding: 4px 0; }
+  .cls { display: flex; gap: 14px; padding: 12px 16px; position: relative; }
+  .cls + .cls { border-top: 1px solid var(--line); }
+  .cls .time { width: 46px; flex: none; text-align: right; }
+  .cls .time b { display: block; font-size: 15px; font-weight: 700; }
+  .cls .time span { font-size: 11px; color: var(--sub); }
+  .cls .body { flex: 1; }
+  .cls .body b { display: block; font-size: 15px; font-weight: 700; }
+  .cls .body .where { margin-top: 2px; font-size: 12px; color: var(--sub); display: flex; align-items: center; gap: 3px; }
+  .cls .body .where .ms { font-size: 15px; }
+  .cls .body .st { margin-top: 8px; }
+  .cls.now { background: var(--primary-soft); }
+  .cls.now .time b { color: var(--primary); }
+  .now-tag { position: absolute; top: 12px; right: 14px; font-size: 11px; font-weight: 700; color: var(--white); background: var(--primary); border-radius: 6px; padding: 2px 6px; }
+  .cls.done { opacity: .55; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 18px 0; }
+  .help { display: flex; gap: 10px; align-items: center; margin: 12px 16px 0; padding: 12px 14px; border-radius: 14px; background: var(--white); font-size: 13px; color: var(--sub); }
+  .help .ms { color: var(--blue); font-size: 22px; }
+  .help b { color: var(--ink); }
+
+  /* 한 장씩 뽑을 때 */
+  body.single { background: transparent; }
+  body.single .board { width: auto; padding: 24px; }
+  body.single .board > h1, body.single .board > .sub, body.single .foot, body.single .cap { display: none; }
+  body.single .row { margin: 0; }
+  body.single .cell:not(.pick) { display: none; }
+</style>
+</head>
+<body>
+<div class="board">
+  <h1>전자출결 목업</h1>
+  <p class="sub">Flutter Material 3 기준 · 색은 팀원 도서관 Figma 토큰 · 화면 속 시각은 2026년 10월 6일(화) 오후 2시 32분(6주차)으로 가정</p>
+
+  <div class="row">
+
+    <!-- ① 출결 요약 -->
+    <div class="cell" data-s="summary">
+      <div class="phone"><div class="screen">
+        <div class="status"><span class="num">14:32</span><span class="icons"><span class="ms fill">signal_cellular_4_bar</span><span class="ms">wifi</span><span class="ms fill">battery_full</span></span></div>
+        <div class="appbar"><h2>출결<small>2026학년도 2학기</small></h2><div class="icon-btn"><span class="ms">refresh</span></div></div>
+        <div class="content">
+          <div class="pad">
+            <div class="card rate">
+              <div class="ring"><div><b class="num">92%</b><span>출석률</span></div></div>
+              <div class="counts">
+                <div><i style="background:var(--green)"></i>출석<b class="num">46</b></div>
+                <div><i style="background:var(--amber)"></i>지각<b class="num">2</b></div>
+                <div><i style="background:var(--primary)"></i>결석<b class="num">1</b></div>
+                <div><i style="background:#C9CDD6"></i>미입력<b class="num">1</b></div>
+              </div>
+            </div>
+          </div>
+          <div class="pad">
+            <div class="warn"><span class="ms fill">warning</span><div><b>운영체제</b> 지각 2회 · 결석 1회<br>지각 3회는 결석 1회로 처리돼요</div></div>
+          </div>
+          <div class="sec">과목별 출결<small>5과목</small></div>
+          <div class="card course">
+            <div class="top"><b>모바일프로그래밍</b><span class="st ok"><span class="ms fill">check_circle</span>출석 100%</span><span class="ms">chevron_right</span></div>
+            <div class="meta">월 3·4교시 · 화 5·6교시</div>
+            <div class="bar"><i class="g" style="width:91%"></i><i class="n" style="width:9%"></i></div>
+            <div class="tally"><span>출석<b class="num">11</b></span><span>지각<b class="num">0</b></span><span>결석<b class="num">0</b></span><span>미입력<b class="num">1</b></span></div>
+          </div>
+          <div class="card course">
+            <div class="top"><b>운영체제</b><span class="st late"><span class="ms fill">schedule</span>주의</span><span class="ms">chevron_right</span></div>
+            <div class="meta">화 1·2교시</div>
+            <div class="bar"><i class="g" style="width:75%"></i><i class="a" style="width:17%"></i><i class="r" style="width:8%"></i></div>
+            <div class="tally"><span>출석<b class="num">9</b></span><span class="bad">지각<b class="num">2</b></span><span class="bad">결석<b class="num">1</b></span></div>
+          </div>
+          <div class="card course">
+            <div class="top"><b>데이터베이스</b><span class="st ok"><span class="ms fill">check_circle</span>출석 100%</span><span class="ms">chevron_right</span></div>
+            <div class="meta">수 5·6교시</div>
+            <div class="bar"><i class="g" style="width:100%"></i></div>
+            <div class="tally"><span>출석<b class="num">10</b></span><span>지각<b class="num">0</b></span><span>결석<b class="num">0</b></span></div>
+          </div>
+        </div>
+        <div class="nav">
+          <div><i><span class="ms">home</span></i>홈</div>
+          <div class="on"><i><span class="ms fill">how_to_reg</span></i>출결</div>
+          <div><i><span class="ms">local_library</span></i>도서관</div>
+          <div><i><span class="ms">directions_bus</span></i>교통</div>
+          <div><i><span class="ms">restaurant</span></i>학식</div>
+        </div>
+        <div class="gesture"></div>
+      </div></div>
+      <p class="cap"><b>① 출결 요약</b><br><span>브라우저로 나가지 않고 앱 안 출결 탭에서 열립니다. 이번 학기 출석률과 과목별 출석·지각·결석 횟수를 한눈에 보여주고, 주의할 과목을 먼저 알려줍니다.</span></p>
+    </div>
+
+    <!-- ② 과목 상세 -->
+    <div class="cell" data-s="course">
+      <div class="phone"><div class="screen">
+        <div class="status"><span class="num">14:32</span><span class="icons"><span class="ms fill">signal_cellular_4_bar</span><span class="ms">wifi</span><span class="ms fill">battery_full</span></span></div>
+        <div class="appbar back"><div class="icon-btn"><span class="ms">arrow_back</span></div><h2>운영체제</h2><div class="icon-btn"><span class="ms">swap_horiz</span></div></div>
+        <div class="content">
+          <div class="mini">
+            <div class="g"><b class="num">9</b><span>출석</span></div>
+            <div class="a"><b class="num">2</b><span>지각</span></div>
+            <div class="r"><b class="num">1</b><span>결석</span></div>
+            <div class="n"><b class="num">0</b><span>미입력</span></div>
+          </div>
+          <div class="chips">
+            <div class="chip on"><span class="ms">check</span>전체</div>
+            <div class="chip">지각·결석만</div>
+          </div>
+          <div class="card weeks">
+            <div class="wk today">
+              <div class="w"><b>6주차</b><span class="num">10/6 화 · 오늘</span></div>
+              <div class="ss">
+                <div class="s"><span>1교시</span><span class="st ok"><span class="ms fill">check_circle</span>출석</span></div>
+                <div class="s"><span>2교시</span><span class="st ok"><span class="ms fill">check_circle</span>출석</span></div>
+              </div>
+            </div>
+            <div class="wk">
+              <div class="w"><b>5주차</b><span class="num">9/29 화</span></div>
+              <div class="ss">
+                <div class="s"><span>1교시</span><span class="st late"><span class="ms fill">schedule</span>지각</span></div>
+                <div class="s"><span>2교시</span><span class="st ok"><span class="ms fill">check_circle</span>출석</span></div>
+              </div>
+            </div>
+            <div class="wk">
+              <div class="w"><b>4주차</b><span class="num">9/22 화</span></div>
+              <div class="ss">
+                <div class="s"><span>1교시</span><span class="st abs"><span class="ms fill">cancel</span>결석</span></div>
+                <div class="s"><span>2교시</span><span class="st ok"><span class="ms fill">check_circle</span>출석</span></div>
+              </div>
+            </div>
+            <div class="wk">
+              <div class="w"><b>3주차</b><span class="num">9/15 화</span></div>
+              <div class="ss">
+                <div class="s"><span>1교시</span><span class="st late"><span class="ms fill">schedule</span>지각</span></div>
+                <div class="s"><span>2교시</span><span class="st ok"><span class="ms fill">check_circle</span>출석</span></div>
+              </div>
+            </div>
+            <div class="wk">
+              <div class="w"><b>2주차</b><span class="num">9/8 화</span></div>
+              <div class="ss">
+                <div class="s"><span>1교시</span><span class="st ok"><span class="ms fill">check_circle</span>출석</span></div>
+                <div class="s"><span>2교시</span><span class="st ok"><span class="ms fill">check_circle</span>출석</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="nav">
+          <div><i><span class="ms">home</span></i>홈</div>
+          <div class="on"><i><span class="ms fill">how_to_reg</span></i>출결</div>
+          <div><i><span class="ms">local_library</span></i>도서관</div>
+          <div><i><span class="ms">directions_bus</span></i>교통</div>
+          <div><i><span class="ms">restaurant</span></i>학식</div>
+        </div>
+        <div class="gesture"></div>
+      </div></div>
+      <p class="cap"><b>② 과목 상세</b><br><span>숫자 대신 "6주차 · 10/6 화"처럼 주차와 날짜를 보여주고, 출석·지각·결석·미입력을 색과 아이콘으로 구분합니다. 지각·결석만 골라 볼 수 있습니다.</span></p>
+    </div>
+
+    <!-- ③ 오늘 수업 -->
+    <div class="cell" data-s="today">
+      <div class="phone"><div class="screen">
+        <div class="status"><span class="num">14:32</span><span class="icons"><span class="ms fill">signal_cellular_4_bar</span><span class="ms">wifi</span><span class="ms fill">battery_full</span></span></div>
+        <div class="appbar"><h2>오늘 수업</h2><div class="icon-btn"><span class="ms">calendar_month</span></div></div>
+        <div class="content">
+          <div class="datehead"><strong>10월 6일 화요일</strong><span>6주차 · 3과목</span></div>
+          <div class="card tl">
+            <div class="cls done">
+              <div class="time"><b class="num">09:00</b><span>1·2교시</span></div>
+              <div class="body"><b>운영체제</b><div class="where"><span class="ms">location_on</span>미래융합정보관 301</div><span class="st ok"><span class="ms fill">check_circle</span>출석</span></div>
+            </div>
+            <div class="cls now">
+              <span class="now-tag">수업 중</span>
+              <div class="time"><b class="num">13:00</b><span>5·6교시</span></div>
+              <div class="body"><b>모바일프로그래밍</b><div class="where"><span class="ms">location_on</span>미래융합정보관 205</div><span class="st none"><span class="ms">hourglass_top</span>미입력 · 수업 뒤 반영</span></div>
+            </div>
+            <div class="cls">
+              <div class="time"><b class="num">16:00</b><span>8·9교시</span></div>
+              <div class="body"><b>캡스톤디자인</b><div class="where"><span class="ms">location_on</span>공학관 112</div><span class="st none"><span class="ms">schedule</span>예정</span></div>
+            </div>
+          </div>
+          <div class="sec" style="padding-top:18px">상태 표시</div>
+          <div class="legend">
+            <span class="st ok"><span class="ms fill">check_circle</span>출석</span>
+            <span class="st late"><span class="ms fill">schedule</span>지각</span>
+            <span class="st abs"><span class="ms fill">cancel</span>결석</span>
+            <span class="st none"><span class="ms">hourglass_top</span>미입력</span>
+          </div>
+          <div class="help"><span class="ms fill">info</span><div>출결이 잘못 기록됐나요? <b>과목 상세에서 이의 신청</b>을 할 수 있어요</div></div>
+        </div>
+        <div class="nav">
+          <div><i><span class="ms">home</span></i>홈</div>
+          <div class="on"><i><span class="ms fill">how_to_reg</span></i>출결</div>
+          <div><i><span class="ms">local_library</span></i>도서관</div>
+          <div><i><span class="ms">directions_bus</span></i>교통</div>
+          <div><i><span class="ms">restaurant</span></i>학식</div>
+        </div>
+        <div class="gesture"></div>
+      </div></div>
+      <p class="cap"><b>③ 오늘 수업</b><br><span>오늘 들을 수업을 시간 순서로 보여주고, 지금 수업과 지난 수업의 출결 상태를 바로 확인합니다.</span></p>
+    </div>
+
+  </div>
+
+  <p class="foot">해결하는 개선점(통합본): 4-9 앱 안에서 표시 · 4-10 상태별 색과 아이콘 · 4-11 과목별 출석·결석 횟수 요약 · 4-12 "1주차" 표기 · 4-13 앱 전체 색 통일 · 8-7 과목별 출석 요약.<br>과목·시간·강의실·출결 기록은 시연용 예시입니다. 지각 처리 규칙과 이의 신청은 학교 출결 시스템의 실제 기능에 맞춰 바꿔야 합니다.</p>
+</div>
+<script>
+  const s = new URLSearchParams(location.search).get('s');
+  if (s) {
+    document.body.classList.add('single');
+    document.querySelector(`.cell[data-s="${s}"]`).classList.add('pick');
+  }
+</script>
+</body>
+</html>

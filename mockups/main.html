@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>메인 화면 목업</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=block" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet">
+<style>
+  /* 색: 팀원 도서관 Figma 토큰(KNUT Library) */
+  :root {
+    --primary: #A3162B;
+    --primary-dark: #6E0E1C;
+    --primary-soft: #FBECEE;
+    --ink: #17191E;
+    --sub: #5B6070;
+    --mute: #9AA0AE;
+    --line: #E6E8EE;
+    --bg: #F4F5F8;
+    --green: #0E9F4F;
+    --amber: #D97A00;
+    --blue: #2F6FEB;
+    --white: #FFFFFF;
+    --page: #ECEEF3;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+    color: var(--ink);
+    background: var(--page);
+    word-break: keep-all;
+    -webkit-font-smoothing: antialiased;
+  }
+  .ms {
+    font-family: 'Material Symbols Rounded';
+    font-weight: normal; font-style: normal; font-size: 24px; line-height: 1;
+    letter-spacing: normal; text-transform: none; white-space: nowrap; direction: ltr;
+    display: inline-block; font-feature-settings: 'liga';
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  .ms.fill { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* 전체 배치 */
+  .board { padding: 52px 56px 40px; width: 1440px; }
+  .board h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; }
+  .board .sub { margin-top: 8px; font-size: 16px; color: var(--sub); }
+  .row { display: flex; gap: 48px; margin-top: 36px; }
+  .cell { width: 410px; }
+  .cap { margin-top: 20px; font-size: 16px; line-height: 1.55; }
+  .cap b { font-weight: 700; }
+  .cap span { color: var(--sub); }
+  .foot { margin-top: 32px; font-size: 13px; color: var(--sub); line-height: 1.7; }
+
+  /* 폰 틀 */
+  .phone {
+    width: 410px; height: 864px; padding: 10px; border-radius: 52px;
+    background: #16171b; box-shadow: 0 18px 40px rgba(20, 24, 40, .22);
+  }
+  .screen {
+    width: 390px; height: 844px; border-radius: 42px; overflow: hidden;
+    background: var(--bg); display: flex; flex-direction: column; position: relative;
+  }
+  .status { height: 40px; padding: 4px 26px 0; display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 500; flex: none; background: var(--white); }
+  .status .icons { display: flex; gap: 4px; align-items: center; }
+  .status .icons .ms { font-size: 17px; }
+  .content { flex: 1; overflow: hidden; }
+
+  /* 하단 탭 */
+  .nav { height: 80px; background: var(--white); border-top: 1px solid var(--line); display: flex; flex: none; padding-top: 12px; }
+  .nav div { flex: 1; display: flex; flex-direction: column; align-items: center; font-size: 12px; font-weight: 500; color: var(--sub); }
+  .nav i { width: 64px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
+  .nav .on { color: var(--primary); font-weight: 700; }
+  .nav .on i { background: var(--primary-soft); color: var(--primary); }
+  .gesture { height: 22px; background: var(--white); display: flex; align-items: center; justify-content: center; flex: none; }
+  .gesture::after { content: ''; width: 108px; height: 4px; border-radius: 2px; background: #1a1b21; opacity: .35; }
+
+  /* 홈 위쪽 막대 */
+  .topbar { height: 60px; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 18px; background: var(--white); flex: none; }
+  .topbar img { width: 32px; height: 32px; border-radius: 16px; }
+  .topbar h2 { flex: 1; font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+  .icon-btn { width: 44px; height: 44px; border-radius: 22px; display: flex; align-items: center; justify-content: center; color: var(--ink); position: relative; }
+  .icon-btn .dot { position: absolute; top: 10px; right: 11px; width: 8px; height: 8px; border-radius: 4px; background: var(--primary); border: 2px solid var(--white); }
+
+  .pad { padding: 12px 16px 0; }
+  .card { background: var(--white); border-radius: 18px; }
+
+  /* 인사 카드 */
+  .hello { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--primary); color: var(--white); border-radius: 18px; }
+  .hello .avatar { width: 44px; height: 44px; border-radius: 22px; background: rgba(255,255,255,.18); display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; }
+  .hello .who { flex: 1; }
+  .hello .who b { display: block; font-size: 17px; font-weight: 700; }
+  .hello .who span { font-size: 13px; opacity: .85; }
+  .hello .btn { height: 36px; padding: 0 14px; border-radius: 18px; background: var(--white); color: var(--primary); font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 4px; }
+  .hello .btn .ms { font-size: 18px; }
+  .login { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--white); border: 1.5px solid var(--primary); border-radius: 18px; }
+  .login .ms.big { font-size: 30px; color: var(--primary); }
+  .login .who { flex: 1; }
+  .login .who b { display: block; font-size: 16px; font-weight: 700; }
+  .login .who span { font-size: 12px; color: var(--sub); }
+  .login .btn { height: 40px; padding: 0 18px; border-radius: 20px; background: var(--primary); color: var(--white); font-size: 14px; font-weight: 700; display: flex; align-items: center; }
+
+  /* 요약 카드 */
+  .sum { display: flex; gap: 10px; }
+  .sum .card { flex: 1; padding: 13px 14px 12px; }
+  .sum .head { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--sub); }
+  .sum .head .ms { font-size: 18px; color: var(--primary); }
+  .sum .main { margin-top: 8px; font-size: 16px; font-weight: 700; line-height: 1.3; }
+  .sum .main em { font-style: normal; color: var(--primary); }
+  .sum .more { margin-top: 4px; font-size: 12px; color: var(--sub); }
+  .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 700; background: var(--primary); color: var(--white); margin-right: 4px; vertical-align: 2px; }
+
+  /* 바로가기 */
+  .quick { display: grid; grid-template-columns: repeat(4, 1fr); row-gap: 6px; padding: 12px 6px 10px; }
+  .q { display: flex; flex-direction: column; align-items: center; gap: 6px; height: 72px; justify-content: center; position: relative; }
+  .q i { width: 44px; height: 44px; border-radius: 14px; background: var(--primary-soft); color: var(--primary); display: flex; align-items: center; justify-content: center; font-style: normal; position: relative; }
+  .q > span { font-size: 12.5px; font-weight: 500; white-space: nowrap; }
+  .q .lock { position: absolute; right: -5px; bottom: -4px; width: 20px; height: 20px; border-radius: 10px; background: var(--white); border: 1px solid var(--line); color: var(--sub); display: flex; align-items: center; justify-content: center; }
+  .q .lock .ms { font-size: 13px; }
+  .q.dim > span { color: var(--sub); }
+
+  /* 공지 */
+  .sec { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 8px; font-size: 16px; font-weight: 700; }
+  .sec a { font-size: 13px; font-weight: 500; color: var(--sub); text-decoration: none; display: flex; align-items: center; }
+  .sec a .ms { font-size: 18px; }
+  .tabs { display: flex; gap: 6px; padding: 0 16px 4px; }
+  .tab { height: 34px; padding: 0 14px; border-radius: 17px; border: 1px solid var(--line); background: var(--white); font-size: 13px; font-weight: 500; color: var(--sub); display: flex; align-items: center; }
+  .tab.on { background: var(--ink); border-color: var(--ink); color: var(--white); font-weight: 700; }
+  .notice { margin: 8px 16px 0; }
+  .n { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 16px; }
+  .n + .n { border-top: 1px solid var(--line); }
+  .n .t { flex: 1; font-size: 14px; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
+  .n .new { width: 6px; height: 6px; border-radius: 3px; background: var(--primary); flex: none; }
+  .n .d { font-size: 12px; color: var(--sub); flex: none; }
+
+  /* 전체 메뉴 */
+  .appbar { height: 60px; display: flex; align-items: center; gap: 6px; padding: 0 8px; background: var(--white); flex: none; }
+  .appbar h2 { flex: 1; font-size: 20px; font-weight: 700; }
+  .search { margin: 0 16px 0; height: 46px; border-radius: 23px; background: var(--white); border: 1px solid var(--line); display: flex; align-items: center; gap: 8px; padding: 0 16px; color: var(--mute); font-size: 14px; }
+  .search .ms { color: var(--sub); font-size: 22px; }
+  .favs { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px; }
+  .fav { height: 34px; padding: 0 12px; border-radius: 10px; background: var(--white); border: 1px solid var(--line); display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; }
+  .fav .ms { font-size: 18px; color: var(--primary); }
+  .group { margin: 10px 16px 0; overflow: hidden; }
+  .gh { display: flex; align-items: center; gap: 12px; height: 54px; padding: 0 12px 0 16px; font-size: 15px; font-weight: 700; }
+  .gh .ms.lead { color: var(--primary); font-size: 22px; }
+  .gh span.t { flex: 1; }
+  .gh small { font-size: 12px; font-weight: 500; color: var(--sub); }
+  .gh .ms.chev { color: var(--sub); }
+  .gi { display: flex; align-items: center; height: 50px; padding: 0 12px 0 50px; font-size: 14px; border-top: 1px solid var(--line); }
+  .gi span { flex: 1; }
+  .gi .ms { font-size: 20px; color: var(--mute); }
+  .gi .ext { font-size: 11px; color: var(--sub); margin-right: 6px; }
+  .account { display: flex; gap: 8px; padding: 12px 16px 0; }
+  .account div { flex: 1; height: 44px; border-radius: 12px; background: var(--white); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; font-weight: 500; }
+  .account .ms { font-size: 20px; color: var(--sub); }
+
+  /* 한 장씩 뽑을 때 */
+  body.single { background: transparent; }
+  body.single .board { width: auto; padding: 24px; }
+  body.single .board > h1, body.single .board > .sub, body.single .foot, body.single .cap { display: none; }
+  body.single .row { margin: 0; }
+  body.single .cell:not(.pick) { display: none; }
+</style>
+</head>
+<body>
+<div class="board">
+  <h1>메인 화면 목업</h1>
+  <p class="sub">Flutter Material 3 기준 · 색은 팀원 도서관 Figma 토큰 · 화면 속 시각은 2026년 10월 6일(화) 오후 2시 32분으로 가정</p>
+
+  <div class="row">
+
+    <!-- ① 홈 (로그인 후) -->
+    <div class="cell" data-s="home">
+      <div class="phone"><div class="screen">
+        <div class="status"><span class="num">14:32</span><span class="icons"><span class="ms fill">signal_cellular_4_bar</span><span class="ms">wifi</span><span class="ms fill">battery_full</span></span></div>
+        <div class="topbar">
+          <img src="../android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png" alt="">
+          <h2>국립한국교통대학교</h2>
+          <div class="icon-btn"><span class="ms">search</span></div>
+          <div class="icon-btn"><span class="ms">notifications</span><i class="dot"></i></div>
+        </div>
+        <div class="content">
+          <div class="pad">
+            <div class="hello">
+              <div class="avatar">김</div>
+              <div class="who"><b>김교통 님</b><span>컴퓨터공학과 · 재학</span></div>
+              <div class="btn"><span class="ms">badge</span>학생증</div>
+            </div>
+          </div>
+          <div class="pad sum">
+            <div class="card">
+              <div class="head"><span class="ms">restaurant</span>오늘 학식</div>
+              <div class="main">치즈돈까스 외 7개</div>
+              <div class="more">학생식당 · <span class="num">2,000~5,000원</span></div>
+            </div>
+            <div class="card">
+              <div class="head"><span class="ms">directions_bus</span>다음 버스</div>
+              <div class="main"><span class="badge num">999</span><em class="num">15분</em> 후</div>
+              <div class="more"><span class="num">14:47</span> 교통대 → 터미널</div>
+            </div>
+          </div>
+          <div class="pad">
+            <div class="card quick">
+              <div class="q"><i><span class="ms">computer</span></i><span>포탈</span></div>
+              <div class="q"><i><span class="ms">school</span></i><span>이캠퍼스</span></div>
+              <div class="q"><i><span class="ms">how_to_reg</span></i><span>전자출결</span></div>
+              <div class="q"><i><span class="ms">local_library</span></i><span>도서관</span></div>
+              <div class="q"><i><span class="ms">restaurant</span></i><span>학식</span></div>
+              <div class="q"><i><span class="ms">directions_bus</span></i><span>교통</span></div>
+              <div class="q"><i><span class="ms">near_me</span></i><span>길찾기</span></div>
+              <div class="q"><i><span class="ms">apps</span></i><span>전체 메뉴</span></div>
+            </div>
+          </div>
+          <div class="sec">공지사항<a href="#">더보기<span class="ms">chevron_right</span></a></div>
+          <div class="tabs">
+            <div class="tab on">학사</div><div class="tab">일반</div><div class="tab">장학</div><div class="tab">행사</div><div class="tab">취업</div>
+          </div>
+          <div class="card notice">
+            <div class="n"><span class="new"></span><span class="t">2026학년도 2학기 중간고사 성적 입력 기간 안내</span><span class="d num">10-06</span></div>
+            <div class="n"><span class="new"></span><span class="t">2학기 수강 철회 신청 안내</span><span class="d num">10-02</span></div>
+            <div class="n"><span class="t">2027학년도 전과(부) 신청 안내</span><span class="d num">09-29</span></div>
+          </div>
+        </div>
+        <div class="nav">
+          <div class="on"><i><span class="ms fill">home</span></i>홈</div>
+          <div><i><span class="ms">how_to_reg</span></i>출결</div>
+          <div><i><span class="ms">local_library</span></i>도서관</div>
+          <div><i><span class="ms">directions_bus</span></i>교통</div>
+          <div><i><span class="ms">restaurant</span></i>학식</div>
+        </div>
+        <div class="gesture"></div>
+      </div></div>
+      <p class="cap"><b>① 홈 (로그인 후)</b><br><span>로그인한 사람과 학생증 버튼을 맨 위에 두고, 오늘 학식과 다음 버스를 바로 보여줍니다. 자주 쓰는 기능 8개는 이름이 한 줄로 보이고, 공지는 한 줄씩 넉넉하게 누를 수 있습니다.</span></p>
+    </div>
+
+    <!-- ② 홈 (로그인 전) -->
+    <div class="cell" data-s="guest">
+      <div class="phone"><div class="screen">
+        <div class="status"><span class="num">14:32</span><span class="icons"><span class="ms fill">signal_cellular_4_bar</span><span class="ms">wifi</span><span class="ms fill">battery_full</span></span></div>
+        <div class="topbar">
+          <img src="../android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png" alt="">
+          <h2>국립한국교통대학교</h2>
+          <div class="icon-btn"><span class="ms">search</span></div>
+          <div class="icon-btn"><span class="ms">notifications</span></div>
+        </div>
+        <div class="content">
+          <div class="pad">
+            <div class="login">
+              <span class="ms big">account_circle</span>
+              <div class="who"><b>로그인이 필요해요</b><span>포탈·출결을 한 번에 쓸 수 있어요</span></div>
+              <div class="btn">로그인</div>
+            </div>
+          </div>
+          <div class="pad sum">
+            <div class="card">
+              <div class="head"><span class="ms">restaurant</span>오늘 학식</div>
+              <div class="main">치즈돈까스 외 7개</div>
+              <div class="more">학생식당 · <span class="num">2,000~5,000원</span></div>
+            </div>
+            <div class="card">
+              <div class="head"><span class="ms">directions_bus</span>다음 버스</div>
+              <div class="main"><span class="badge num">999</span><em class="num">15분</em> 후</div>
+              <div class="more"><span class="num">14:47</span> 교통대 → 터미널</div>
+            </div>
+          </div>
+          <div class="pad">
+            <div class="card quick">
+              <div class="q dim"><i><span class="ms">computer</span><b class="lock"><span class="ms fill">lock</span></b></i><span>포탈</span></div>
+              <div class="q dim"><i><span class="ms">school</span><b class="lock"><span class="ms fill">lock</span></b></i><span>이캠퍼스</span></div>
+              <div class="q dim"><i><span class="ms">how_to_reg</span><b class="lock"><span class="ms fill">lock</span></b></i><span>전자출결</span></div>
+              <div class="q"><i><span class="ms">local_library</span></i><span>도서관</span></div>
+              <div class="q"><i><span class="ms">restaurant</span></i><span>학식</span></div>
+              <div class="q"><i><span class="ms">directions_bus</span></i><span>교통</span></div>
+              <div class="q"><i><span class="ms">near_me</span></i><span>길찾기</span></div>
+              <div class="q"><i><span class="ms">apps</span></i><span>전체 메뉴</span></div>
+            </div>
+          </div>
+          <div class="sec">공지사항<a href="#">더보기<span class="ms">chevron_right</span></a></div>
+          <div class="tabs">
+            <div class="tab on">학사</div><div class="tab">일반</div><div class="tab">장학</div><div class="tab">행사</div><div class="tab">취업</div>
+          </div>
+          <div class="card notice">
+            <div class="n"><span class="new"></span><span class="t">2026학년도 2학기 중간고사 성적 입력 기간 안내</span><span class="d num">10-06</span></div>
+            <div class="n"><span class="new"></span><span class="t">2학기 수강 철회 신청 안내</span><span class="d num">10-02</span></div>
+            <div class="n"><span class="t">2027학년도 전과(부) 신청 안내</span><span class="d num">09-29</span></div>
+          </div>
+        </div>
+        <div class="nav">
+          <div class="on"><i><span class="ms fill">home</span></i>홈</div>
+          <div><i><span class="ms">how_to_reg</span></i>출결</div>
+          <div><i><span class="ms">local_library</span></i>도서관</div>
+          <div><i><span class="ms">directions_bus</span></i>교통</div>
+          <div><i><span class="ms">restaurant</span></i>학식</div>
+        </div>
+        <div class="gesture"></div>
+      </div></div>
+      <p class="cap"><b>② 홈 (로그인 전)</b><br><span>로그인 전후로 화면 구성이 그대로입니다. 로그인이 필요한 기능에만 자물쇠를 붙이고, 맨 위에 로그인 버튼을 둡니다.</span></p>
+    </div>
+
+    <!-- ③ 전체 메뉴 -->
+    <div class="cell" data-s="menu">
+      <div class="phone"><div class="screen">
+        <div class="status"><span class="num">14:32</span><span class="icons"><span class="ms fill">signal_cellular_4_bar</span><span class="ms">wifi</span><span class="ms fill">battery_full</span></span></div>
+        <div class="appbar">
+          <div class="icon-btn"><span class="ms">arrow_back</span></div>
+          <h2>전체 메뉴</h2>
+          <div class="icon-btn"><span class="ms">settings</span></div>
+        </div>
+        <div class="content">
+          <div class="search" style="margin-top:12px"><span class="ms">search</span>메뉴 검색 (예: 성적, 외박)</div>
+          <div class="sec" style="padding-top:14px">자주 쓰는 메뉴<a href="#">편집</a></div>
+          <div class="favs">
+            <div class="fav"><span class="ms">calendar_month</span>시간표</div>
+            <div class="fav"><span class="ms">grading</span>성적조회</div>
+            <div class="fav"><span class="ms">receipt_long</span>등록금 고지서</div>
+            <div class="fav"><span class="ms">night_shelter</span>외박신청</div>
+          </div>
+          <div class="card group" style="margin-top:14px">
+            <div class="gh"><span class="ms lead">menu_book</span><span class="t">수업·성적</span><small>7</small><span class="ms chev">expand_less</span></div>
+            <div class="gi"><span>학생시간표조회</span><span class="ms">chevron_right</span></div>
+            <div class="gi"><span>금학기성적조회</span><span class="ms">chevron_right</span></div>
+            <div class="gi"><span>강의평가</span><span class="ms">chevron_right</span></div>
+            <div class="gi"><span>졸업자가진단</span><span class="ms">chevron_right</span></div>
+          </div>
+          <div class="card group">
+            <div class="gh"><span class="ms lead">badge</span><span class="t">학적</span><small>4</small><span class="ms chev">expand_more</span></div>
+          </div>
+          <div class="card group">
+            <div class="gh"><span class="ms lead">savings</span><span class="t">장학·등록</span><small>5</small><span class="ms chev">expand_more</span></div>
+          </div>
+          <div class="card group">
+            <div class="gh"><span class="ms lead">apartment</span><span class="t">생활관</span><small>4</small><span class="ms chev">expand_more</span></div>
+          </div>
+          <div class="card group">
+            <div class="gh"><span class="ms lead">campaign</span><span class="t">학교 소식·SNS</span><small>5</small><span class="ms chev">expand_more</span></div>
+          </div>
+          <div class="account">
+            <div><span class="ms">settings</span>설정</div>
+            <div><span class="ms">logout</span>로그아웃</div>
+          </div>
+        </div>
+        <div class="nav">
+          <div class="on"><i><span class="ms fill">home</span></i>홈</div>
+          <div><i><span class="ms">how_to_reg</span></i>출결</div>
+          <div><i><span class="ms">local_library</span></i>도서관</div>
+          <div><i><span class="ms">directions_bus</span></i>교통</div>
+          <div><i><span class="ms">restaurant</span></i>학식</div>
+        </div>
+        <div class="gesture"></div>
+      </div></div>
+      <p class="cap"><b>③ 전체 메뉴</b><br><span>메인 아이콘과 ≡ 메뉴로 나뉘어 있던 기능을 한 목록에 모았습니다. 분류는 접힌 채로 시작하고, 검색과 자주 쓰는 메뉴로 바로 갑니다. 로그아웃은 맨 아래에 따로 둡니다.</span></p>
+    </div>
+
+  </div>
+
+  <p class="foot">해결하는 개선점(통합본): 2-2 로그인 전후 아이콘 구성 고정 · 2-3 자주 쓰는 기능 앞쪽 고정 · 2-4 SNS를 메뉴로 · 2-8 로그인 표시 · 2-9 헤더에 검색·알림 · 2-12 아이콘 이름 한 줄 · 2-13 공지 터치 영역 · 2-14 말머리 제거 · 3-3·3-4 로그아웃 위치 · 3-5~3-12 메뉴 구조 · 4-25 공지 탭 순서 · 8-6 메인 요약.<br>이름·학과·공지 제목은 시연용 예시입니다. 학식·버스 숫자는 교통·학식 목업과 같은 시각 기준입니다.</p>
+</div>
+<script>
+  const s = new URLSearchParams(location.search).get('s');
+  if (s) {
+    document.body.classList.add('single');
+    document.querySelector(`.cell[data-s="${s}"]`).classList.add('pick');
+  }
+</script>
+</body>
+</html>
