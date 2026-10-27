@@ -154,11 +154,20 @@ class NativeBridge {
   // ---- 웹뷰 ----
 
   /// webview_flutter가 만든 네이티브 WebView에 원본과 같은 설정, `allytteAndroid` 객체,
-  /// 링크 처리, 다운로드, `window.open` 처리를 붙인다.
-  static Future<void> installWebView(int webViewId, String kind) => _call<void>(
-    'installWebView',
-    <String, Object>{'id': webViewId, 'kind': kind},
-  );
+  /// 링크 처리, 다운로드, `window.open` 처리를 붙인다. [textZoom]은 웹 글자 크기(%).
+  static Future<void> installWebView(
+    int webViewId,
+    String kind,
+    int textZoom,
+  ) => _call<void>('installWebView', <String, Object>{
+    'id': webViewId,
+    'kind': kind,
+    'textZoom': textZoom,
+  });
+
+  /// 열려 있는 모든 웹뷰의 글자 크기(%)를 바꾼다(휴대폰 글자 크기 설정을 바꿨을 때).
+  static Future<void> setWebTextZoom(int textZoom) =>
+      _call<void>('setWebTextZoom', textZoom);
 
   /// `window.open`으로 요청된 창(token)에 새 WebView를 연결한다.
   static Future<void> attachWindow(int token, int webViewId) => _call<void>(

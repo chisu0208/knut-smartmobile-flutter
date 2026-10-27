@@ -62,7 +62,7 @@ class _AppDialog {
 }
 
 class _MainScreenState extends State<MainScreen>
-    with SingleTickerProviderStateMixin
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver
     implements FullscreenHost {
   late DevicePrefs _prefs;
   late DeviceInfo _info;
@@ -147,6 +147,7 @@ class _MainScreenState extends State<MainScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     NativeBridge.on(
       'jsCommand',
       (MethodCall call) async =>
@@ -229,8 +230,15 @@ class _MainScreenState extends State<MainScreen>
     ]) {
       NativeBridge.off(m);
     }
+    WidgetsBinding.instance.removeObserver(this);
     _ticker.dispose();
     super.dispose();
+  }
+
+  /// 앱이 떠 있는 동안 휴대폰 글자 크기 설정을 바꾸면 열려 있는 웹뷰 글자도 바로 맞춘다(통합본 5-1).
+  @override
+  void didChangeTextScaleFactor() {
+    NativeBridge.setWebTextZoom(WebEntry.currentTextZoom);
   }
 
   /// `P()` + `Y0()`의 토큰 준비.

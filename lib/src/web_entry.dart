@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
@@ -39,6 +41,25 @@ class WebEntry {
         WebResourceErrorType.redirectLoop,
         WebResourceErrorType.tooManyRequests,
       };
+
+  /// 웹 글자 배율 상한(통합본 5-1). 휴대폰 글자 크기 설정이 이보다 크면 웹 글자는 이 배율에서
+  /// 멈춘다. 더 크게 보려면 두 손가락 확대(5-2)를 쓴다.
+  ///
+  /// 학교 페이지는 고정 높이 칸으로 짜여 있어서, 글자 크기를 2배로 하면 공지 목록이 겹치고 아이콘
+  /// 이름·학교 이름이 잘린다(에뮬레이터 확인). 1.3은 Android 13까지 고를 수 있던 가장 큰 글자
+  /// 크기("가장 크게", 0.85·1.0·1.15·1.3 가운데)다. 그보다 큰 값은 Android 14부터 생겼는데, 그때
+  /// Android도 큰 글자가 지나치게 커지지 않도록 글자 크기를 비선형으로 키운다. WebView의 글자
+  /// 배율(`textZoom`)은 모든 글자를 같은 비율로 키우므로 상한을 둔다.
+  static const double maxWebFontScale = 1.3;
+
+  /// 휴대폰 글자 크기 설정(`fontScale`)에 맞춘 웹 글자 크기(%, `WebSettings.textZoom`).
+  /// 원본은 85% 고정이었다. 개선판은 100% × 글자 크기 설정이되 [maxWebFontScale]까지만 키운다.
+  static int textZoomFor(double fontScale) =>
+      (100 * math.min(fontScale, maxWebFontScale)).round();
+
+  /// 지금 휴대폰 글자 크기 설정에 맞춘 웹 글자 크기(%).
+  static int get currentTextZoom =>
+      textZoomFor(WidgetsBinding.instance.platformDispatcher.textScaleFactor);
 
   /// Kotlin이 보내는 웹뷰 이벤트를 받을 항목들. 웹뷰가 해제되면 같이 사라지도록 약하게 잡는다.
   static final Map<int, WeakReference<WebEntry>> _byId =
@@ -115,7 +136,7 @@ class WebEntry {
           onShowCustomWidget: fullscreen.show,
           onHideCustomWidget: fullscreen.hide,
         );
-    await NativeBridge.installWebView(entry.id, kind);
+    await NativeBridge.installWebView(entry.id, kind, currentTextZoom);
     _byId.removeWhere((_, WeakReference<WebEntry> ref) => ref.target == null);
     _byId[entry.id] = WeakReference<WebEntry>(entry);
     return entry;

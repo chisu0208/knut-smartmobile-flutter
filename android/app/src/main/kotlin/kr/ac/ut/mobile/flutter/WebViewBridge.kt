@@ -42,7 +42,6 @@ import io.flutter.plugins.webviewflutter.WebChromeClientProxyApi
 import io.flutter.plugins.webviewflutter.WebViewFlutterAndroidExternalApi
 import java.net.URISyntaxException
 import java.net.URLDecoder
-import kotlin.math.roundToInt
 
 /**
  * webview_flutter가 만든 네이티브 WebView에 원본 MainActivity의 WebView 설정을 그대로 입힌다.
@@ -62,13 +61,16 @@ class WebViewBridge(private val activity: MainActivity) {
     /** 설정을 입힌 웹뷰들. 휴대폰 글자 크기를 바꾸면 모두 다시 맞춘다. */
     private val installed = LinkedHashSet<Long>()
 
+    /** 웹 글자 크기(%). Dart가 휴대폰 글자 크기 설정에서 정해 보낸다(`web_entry.dart` `textZoomFor`). */
+    private var textZoom = 100
+
     private fun webView(id: Long): WebView? {
         val binding = activity.pluginBinding ?: return null
         return WebViewFlutterAndroidExternalApi.getWebView(binding, id)
     }
 
     @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
-    fun install(id: Long, kind: String) {
+    fun install(id: Long, kind: String, textZoom: Int) {
         val webView = webView(id) ?: return
         val s = webView.settings
         // 원본은 출시 버전에서도 켜 두었다. 개선판은 debug 빌드에서만 켠다(통합본 9-1).
@@ -85,8 +87,9 @@ class WebViewBridge(private val activity: MainActivity) {
         s.displayZoomControls = false
         s.javaScriptEnabled = true
         s.domStorageEnabled = true
-        // 원본은 85% 고정이었다. 개선판은 100%에 휴대폰 글자 크기 설정을 곱한다(통합본 5-1).
-        s.textZoom = textZoom()
+        // 원본은 85% 고정이었다. 개선판은 휴대폰 글자 크기 설정을 상한까지 따른다(통합본 5-1).
+        this.textZoom = textZoom
+        s.textZoom = textZoom
         installed.add(id)
         when (kind) {
             "main" -> {
@@ -150,12 +153,9 @@ class WebViewBridge(private val activity: MainActivity) {
         installed.remove(id)
     }
 
-    /** 휴대폰 글자 크기 설정(fontScale)을 반영한 웹 글자 크기(%). */
-    private fun textZoom(): Int = (activity.resources.configuration.fontScale * 100).roundToInt()
-
     /** 앱이 떠 있는 동안 글자 크기 설정을 바꾸면 열려 있는 웹뷰에도 바로 반영한다. */
-    fun applyTextZoom() {
-        val zoom = textZoom()
+    fun setTextZoom(zoom: Int) {
+        textZoom = zoom
         installed.toList().forEach { id ->
             val webView = webView(id)
             if (webView == null) installed.remove(id) else webView.settings.textZoom = zoom
