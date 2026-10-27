@@ -43,17 +43,12 @@ class CampusSetting extends ChangeNotifier {
   static const String campusKey = 'app.campus';
   static const String _restaurantPrefix = 'app.meal_restaurant.';
 
+  /// 캠퍼스는 데이터(`assets/data/*.json`)에서 더할 수 있으므로 저장 키를 미리 정해 두지 않는다
+  /// (`allowList` 없음).
   static Future<CampusSetting> load() async {
     final SharedPreferencesWithCache prefs =
         await SharedPreferencesWithCache.create(
-          cacheOptions: const SharedPreferencesWithCacheOptions(
-            allowList: <String>{
-              campusKey,
-              '${_restaurantPrefix}chungju',
-              '${_restaurantPrefix}jeungpyeong',
-              '${_restaurantPrefix}uiwang',
-            },
-          ),
+          cacheOptions: const SharedPreferencesWithCacheOptions(),
         );
     return CampusSetting(_PrefsStore(prefs));
   }

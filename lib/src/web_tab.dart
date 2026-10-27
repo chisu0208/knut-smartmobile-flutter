@@ -165,10 +165,12 @@ class _WebTabState extends State<WebTab> implements FullscreenHost {
     });
   }
 
+  /// 서버가 준 주소를 탭의 첫 페이지로 연다. 그 페이지가 뜨면 방문 기록을 지워서, 뒤로 키가 전에
+  /// 받은 주소의 페이지로 돌아가지 않고 홈 탭으로 간다.
   void _load(String url) {
     setState(() => _status = _WebTabStatus.web);
     // 외부 사이트라 원본 헤더(기기 토큰 등)는 보내지 않는다(통합본 9-3).
-    _web!.loadUrl(url, const <String, String>{});
+    _web!.loadUrl(url, const <String, String>{}, clearHistoryWhenDone: true);
   }
 
   Future<bool> _onBack() async {

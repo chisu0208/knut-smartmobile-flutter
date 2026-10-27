@@ -443,7 +443,7 @@ class _DayCell extends StatelessWidget {
                     ],
                     color: selected
                         ? Colors.white
-                        : (day.isOff ? AppColors.mute : AppColors.ink),
+                        : (day.isOff ? AppColors.sub : AppColors.ink),
                   ),
                 ),
               ),
