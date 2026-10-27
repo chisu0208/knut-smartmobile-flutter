@@ -15,6 +15,7 @@ import 'legacy_json.dart';
 import 'legacy_widgets.dart';
 import 'native_bridge.dart';
 import 'popup_animation.dart';
+import 'popup_state.dart';
 import 'qr_scan_screen.dart';
 import 'uuid.dart';
 import 'web_entry.dart';
@@ -62,7 +63,7 @@ class _AppDialog {
 }
 
 class _MainScreenState extends State<MainScreen>
-    with SingleTickerProviderStateMixin
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver
     implements FullscreenHost {
   late DevicePrefs _prefs;
   late DeviceInfo _info;
@@ -84,22 +85,21 @@ class _MainScreenState extends State<MainScreen>
   final List<WebEntry> _frame = <WebEntry>[]; // webview_frame(f7668Y0)의 자식 순서
 
   // ---- 상태 값 ----
-  bool _popupShown = false; // f7670B
-  String? _popupAlign; // f7672C
-  bool _mainOwner = true; // f7676E
+  // 팝업이 다 나와 있는지(f7670B), 정렬(f7672C), 뒤로 키 주인(f7676E), 배경·애니메이션
+  late final PopupState _popupState = PopupState(
+    onAnimationStart: _ensureTicker,
+    webviewIsMain: () => _prefs.webview == 'main',
+  );
   bool _childOpen = false; // f7717a0
   bool _grandchildOpen = false; // f7718b0
   String? _nfcUrl; // f7722f0
   String? _resultUrl; // f7723g0 (QR·비콘 결과 전송 주소)
   int _backPressedAt = 0; // f7709U0
   JArr? _beaconUuids; // f7711V0
-  ui.Image? _sharedBitmap; // f7721e0 (아이콘·헤더 배경이 함께 쓰는 필드)
 
   // ---- 메인 헤더·본문·푸터 ----
   bool _headerVisible = true;
   final GradientBox _headerBox = GradientBox(color: _white); // f7741y0
-  bool _headerHasBitmap = false; // g1()로 배경이 BitmapDrawable로 바뀌었는지
-  ui.Image? _headerBitmap;
   final _MenuSlot _left = _MenuSlot();
   final _MenuSlot _center = _MenuSlot();
   final _MenuSlot _right = _MenuSlot();
@@ -108,12 +108,8 @@ class _MainScreenState extends State<MainScreen>
   List<_MenuButton>? _footerItems; // null이면 레이아웃의 "*" 버튼
 
   // ---- 팝업 ----
-  bool _bgVisible = false; // popup_bg_container
   Alignment _bgGravity = Alignment.topRight; // XML gravity="right"
-  int? _popupWidthPx; // null = match_parent
-  int? _popupHeightPx; // null = match_parent, -2 = wrap_content
-  late final AnimTrack _bgTrack = AnimTrack(_animationListener);
-  late final AnimTrack _bodyTrack = AnimTrack(_animationListener);
+  String? _popupSizeAlign; // 팝업 크기를 정한 정렬(null = 꽉). 크기는 그릴 때 계산(6-12)
   late final Ticker _ticker = createTicker(_onTick);
   bool _popupHeaderVisible = false;
   final GradientBox _popupHeaderBox = GradientBox(
@@ -147,6 +143,7 @@ class _MainScreenState extends State<MainScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     NativeBridge.on(
       'jsCommand',
       (MethodCall call) async =>
@@ -155,7 +152,11 @@ class _MainScreenState extends State<MainScreen>
     NativeBridge.on('createWindow', (MethodCall call) async {
       final Map<Object?, Object?> args =
           call.arguments as Map<Object?, Object?>;
-      await _createWindow(args['parent']! as String, args['token']! as int);
+      await _createWindow(
+        args['parent']! as String,
+        args['token']! as int,
+        userGesture: args['userGesture'] != false,
+      );
     });
     NativeBridge.on(
       'closeWindow',
@@ -179,20 +180,28 @@ class _MainScreenState extends State<MainScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_screenWidthPx != 0) return;
-    final MediaQueryData mq = MediaQuery.of(context);
-    _dpr = mq.devicePixelRatio;
-    // Display.getSize: 상태 표시줄과 내비게이션 바를 뺀 앱 영역
-    _screenWidthPx = (mq.size.width * _dpr).round();
-    _screenHeightPx =
-        ((mq.size.height - mq.viewPadding.top - mq.viewPadding.bottom) * _dpr)
-            .round();
-    // V0(): 화면 높이(dp)가 750 이상이면 메뉴 칸을 작게
+    final bool first = _screenWidthPx == 0;
+    _measureScreen();
+    if (!first) return;
+    // V0(): 화면 높이(dp)가 750 이상이면 메뉴 칸을 작게. 만든 버튼에 쓰이므로 처음 한 번만 정한다.
     if ((_screenHeightPx / _dpr).truncate() >= 750) {
       _menuBoxPx = 80;
       _footerBoxPx = 90;
     }
     _onCreate();
+  }
+
+  /// `Display.getSize`: 상태 표시줄과 내비게이션 바를 뺀 앱 영역(px).
+  ///
+  /// 원본은 처음 한 번만 쟀다. 개선판은 분할 화면·창 크기·방향이 바뀌면 다시 재서, 열려 있는
+  /// 팝업(화면의 80% 규칙)과 대화상자 폭을 새 크기에 맞춘다(통합본 6-12).
+  void _measureScreen() {
+    _dpr = MediaQuery.devicePixelRatioOf(context);
+    final Size size = MediaQuery.sizeOf(context);
+    final EdgeInsets padding = MediaQuery.viewPaddingOf(context);
+    _screenWidthPx = (size.width * _dpr).round();
+    _screenHeightPx = ((size.height - padding.top - padding.bottom) * _dpr)
+        .round();
   }
 
   /// `onCreate()`
@@ -229,8 +238,15 @@ class _MainScreenState extends State<MainScreen>
     ]) {
       NativeBridge.off(m);
     }
+    WidgetsBinding.instance.removeObserver(this);
     _ticker.dispose();
     super.dispose();
+  }
+
+  /// 앱이 떠 있는 동안 휴대폰 글자 크기 설정을 바꾸면 열려 있는 웹뷰 글자도 바로 맞춘다(통합본 5-1).
+  @override
+  void didChangeTextScaleFactor() {
+    NativeBridge.setWebTextZoom(WebEntry.currentTextZoom);
   }
 
   /// `P()` + `Y0()`의 토큰 준비.
@@ -358,11 +374,7 @@ class _MainScreenState extends State<MainScreen>
     if (!mounted) return;
     setState(() {});
     // 숨어 있던 동안 멈춘 애니메이션은 다시 그려질 때 이어서 시간이 흐른다.
-    if (_bgDrawn &&
-        (_bgTrack.running || _bodyTrack.running) &&
-        !_ticker.isActive) {
-      _ticker.start();
-    }
+    if (_popupState.animating) _ensureTicker();
   }
 
   /// `Q0(message)`: 알림 명령을 만들어 처리기에 넣는다(따옴표 처리 없이 그대로 끼워 넣음).
@@ -382,9 +394,9 @@ class _MainScreenState extends State<MainScreen>
   // ======================================================================
 
   Future<void> _configureMain(JObj action) async {
-    _mainOwner = true;
-    if (_popupShown) await _a0((Future<void> Function() op) => op());
-    _bgTrack.clear();
+    _popupState.mainOwner = true;
+    if (_popupState.shown) await _a0((Future<void> Function() op) => op());
+    _popupState.cancelAnimation();
     try {
       final JObj config = action.getJSONObject('config');
       config.getString('show');
@@ -400,7 +412,7 @@ class _MainScreenState extends State<MainScreen>
         final String bgColor = header.getString('bgColor');
         final String border = header.getString('border');
         _headerBox.color = _backgroundColor(bgColor);
-        if (bgImage != 'null') await _g1(bgImage);
+        await _g1(_headerBox, bgImage);
         _applyStroke(_headerBox, border);
         final JObj menu = header.getJSONObject('menu');
         for (final (String side, _MenuSlot slot) in <(String, _MenuSlot)>[
@@ -413,10 +425,14 @@ class _MainScreenState extends State<MainScreen>
           } else {
             slot.visible = true;
             slot.items = <_MenuButton>[];
-            // 원본은 getJSONObject 뒤에 instanceof를 검사해서 배열이면 여기서 예외로
-            // 나머지 구성(푸터, 주소 불러오기)이 모두 중단된다.
-            final JObj item = menu.getJSONObject(side);
-            slot.items = await _j0(item, 'main_$side');
+            // 원본은 getJSONObject 뒤에 instanceof를 검사해서, 배열이면 여기서 예외로 나머지
+            // 구성(푸터, 주소 불러오기)이 모두 중단됐다(HANDOFF 5.6). 개선판은 팝업 헤더(I0)처럼
+            // 배열이면 버튼을 차례로 넣고, 빈 배열이면 칸을 숨긴다.
+            final List<JObj> items = menu.getJSONObjects(side);
+            slot.visible = items.isNotEmpty;
+            for (final JObj item in items) {
+              slot.items.addAll(await _j0(item, 'main_$side'));
+            }
           }
         }
       }
@@ -450,8 +466,11 @@ class _MainScreenState extends State<MainScreen>
   int _dpToPx(int dp) => (dp * _dpr).truncate();
 
   /// `H0(footer)`: 메인 푸터.
+  ///
+  /// 원본은 여기서 뒤로가기 주인(`f7676E`)을 팝업 쪽으로 바꿔서, 푸터가 있는 메인에서 첫 뒤로
+  /// 키가 보이는 변화 없이 그 값만 되돌렸다(HANDOFF 5.6). 개선판은 바꾸지 않아 첫 뒤로 키부터
+  /// 종료 안내가 나온다.
   Future<void> _h0(JObj footer) async {
-    _mainOwner = false; // 원본 그대로: 푸터를 만들면 뒤로가기 주인이 팝업 쪽으로 바뀐다.
     try {
       _footerItems = <_MenuButton>[];
       final String bgImage = footer.getString('bgImage');
@@ -459,7 +478,7 @@ class _MainScreenState extends State<MainScreen>
       final String border = footer.getString('border');
       final JArr menu = footer.getJSONArray('menu');
       _footerBox.color = _backgroundColor(bgColor);
-      if (bgImage != 'null') await _g1(bgImage);
+      await _g1(_footerBox, bgImage);
       _applyStroke(_footerBox, border);
       for (int i = 0; i < menu.length; i++) {
         _footerItems!.add(
@@ -479,8 +498,7 @@ class _MainScreenState extends State<MainScreen>
       final String border = footer.getString('border');
       final JArr menu = footer.getJSONArray('menu');
       _popupFooterBox.color = _backgroundColor(bgColor);
-      // 원본 그대로: 팝업 푸터 배경 이미지도 메인 헤더 배경으로 간다.
-      if (bgImage != 'null') await _g1(bgImage);
+      await _g1(_popupFooterBox, bgImage);
       _applyStroke(_popupFooterBox, border);
       for (int i = 0; i < menu.length; i++) {
         _popupFooterItems.add(
@@ -556,40 +574,29 @@ class _MainScreenState extends State<MainScreen>
       if (!json.isNull('action')) {
         json.getJSONArray('action').getJSONObject(0);
         final String command = json.toString();
-        // 원본은 x0을 끝까지 처리한 뒤 대화상자를 닫는다. 그래서 버튼 명령이 새 대화상자를
-        // 띄우면 그 새 대화상자가 닫힌다(그대로 따름).
+        // 원본은 x0을 끝까지 처리한 뒤 대화상자를 닫아서, 버튼 명령이 새 대화상자를 띄우면 그
+        // 새 대화상자가 바로 닫혔다(HANDOFF 5.8). 개선판은 먼저 닫고 명령을 처리한다.
         button.onTap = () {
-          _enqueue(command, fromBridge: false).then((_) {
-            if (loc == 'dialog') _cancelDialog();
-          });
+          if (loc == 'dialog') _cancelDialog();
+          _enqueue(command, fromBridge: false);
         };
       }
     } catch (_) {}
     return button;
   }
 
-  /// `P0(url)`: 아이콘을 내려받아 공용 비트맵 필드에 넣고 그 값을 쓴다.
-  Future<ui.Image?> _p0(String url) async {
-    _storeBitmap(await fetchBitmap(url));
-    return _sharedBitmap;
-  }
+  /// `P0(url)`: 아이콘·배경 그림을 내려받는다. 받지 못했거나 그림이 아니면 null(그림 없음).
+  ///
+  /// 원본은 아이콘·헤더 배경이 함께 쓰는 필드 하나(`f7721e0`)에 넣고 그 값을 써서, 내려받기가
+  /// 실패하면 직전에 받은 다른 그림이 대신 쓰였다(HANDOFF 5.8).
+  Future<ui.Image?> _p0(String url) async => (await fetchBitmap(url)).image;
 
-  /// `g1(url)`: 내려받은 그림을 메인 헤더 배경으로(헤더·푸터·팝업 어디서 불러도 메인 헤더).
-  Future<void> _g1(String url) async {
-    _storeBitmap(await fetchBitmap(url));
-    _headerHasBitmap = true;
-    _headerBitmap = _sharedBitmap;
-  }
-
-  void _storeBitmap(BitmapFetch result) {
-    switch (result) {
-      case BitmapLoaded(:final ui.Image image):
-        _sharedBitmap = image;
-      case BitmapUndecodable():
-        _sharedBitmap = null;
-      case BitmapFailed():
-        break; // 실패하면 이전 값 그대로
-    }
+  /// `g1(url)`: 헤더·푸터 배경 그림을 그 칸([box])에 깐다. `bgImage`가 `"null"`이거나 받지
+  /// 못하면 그림 없이 배경색으로 둔다.
+  ///
+  /// 원본은 메인 푸터·팝업 헤더·팝업 푸터에서 불러도 모두 메인 헤더 배경으로 갔다(HANDOFF 5.8).
+  Future<void> _g1(GradientBox box, String bgImage) async {
+    box.image = bgImage == 'null' ? null : await _p0(bgImage);
   }
 
   /// `B0(url)`: 저장된 `webview`가 `popup`이면 팝업, 아니면 메인 웹뷰에 공통 헤더와 함께 불러온다.
@@ -619,8 +626,7 @@ class _MainScreenState extends State<MainScreen>
   // ======================================================================
 
   Future<void> _configurePopup(JObj action) async {
-    _mainOwner = false;
-    _popupShown = false;
+    _popupState.beginOpen();
     await _z0();
     try {
       final JObj config = action.getJSONObject('config');
@@ -633,57 +639,22 @@ class _MainScreenState extends State<MainScreen>
       final String footer = !config.isNull('footer')
           ? config.getString('footer')
           : 'null';
-      _popupAlign = align;
-      final int w80 = (_screenWidthPx * 0.8).truncate();
-      final int h80 = (_screenHeightPx * 0.8).truncate();
+      // 알 수 없는 정렬이면 원본처럼 이전 팝업 크기를 그대로 쓴다.
+      if (popupSizePx(align, 0, 0) != null) _popupSizeAlign = align;
       switch (align) {
         case 'left':
           _bgGravity = Alignment.topLeft;
-          _popupWidthPx = w80;
-          _popupHeightPx = null;
-          if (!_popupShown) {
-            _bgVisible = true;
-            _startAnimation(_bgTrack, LegacyAnim.inLeft);
-          }
         case 'right':
           _bgGravity = Alignment.topRight;
-          _popupWidthPx = w80;
-          _popupHeightPx = null;
-          if (!_popupShown) {
-            _bgVisible = true;
-            _startAnimation(_bodyTrack, LegacyAnim.inRight);
-          }
         case 'center':
-          _bgGravity = Alignment.center;
-          _popupWidthPx = w80;
-          _popupHeightPx = h80;
-          _popupShown = true;
-          _bgTrack.clear();
-          _bgVisible = true;
         case 'full':
           _bgGravity = Alignment.center;
-          _popupWidthPx = null;
-          _popupHeightPx = null;
-          _popupShown = true;
-          _bgTrack.clear();
-          _bgVisible = true;
         case 'top':
           _bgGravity = Alignment.topCenter;
-          _popupWidthPx = null;
-          _popupHeightPx = h80;
-          if (!_popupShown) {
-            _bgVisible = true;
-            _startAnimation(_bodyTrack, LegacyAnim.inTop);
-          }
         case 'bottom':
           _bgGravity = Alignment.bottomCenter;
-          _popupWidthPx = null;
-          _popupHeightPx = h80;
-          if (!_popupShown) {
-            _bgVisible = true;
-            _startAnimation(_bodyTrack, LegacyAnim.inBottom);
-          }
       }
+      _popupState.enter(align); // 정렬별 등장(PopupState)
       _popupHeaderVisible = false;
       if (config.isNull('header')) {
         _i1(align, header, footer, false);
@@ -694,8 +665,7 @@ class _MainScreenState extends State<MainScreen>
         final String border = h.getString('border');
         _popupHeaderBox.color = _backgroundColor(bgColor);
         _i1(align, header, footer, bgColor == 'transparent');
-        // 원본 그대로: 팝업 헤더 배경 이미지가 메인 헤더 배경으로 간다.
-        if (bgImage != 'null') await _g1(bgImage);
+        await _g1(_popupHeaderBox, bgImage);
         _applyStroke(_popupHeaderBox, border);
         if (align == 'full') {
           _subHeadVisible = true;
@@ -840,29 +810,14 @@ class _MainScreenState extends State<MainScreen>
   // 팝업 닫기 A0와 애니메이션
   // ======================================================================
 
-  /// `A0()`: `webview="main"` 저장 후 닫기(runOnUiThread).
+  /// `A0()`: `webview="main"` 저장 후 닫기(runOnUiThread). 닫는 규칙과 개선판에서 바뀐 점
+  /// (닫으면 뒤로 키를 메인으로 되돌림)은 [PopupState.close].
   Future<void> _a0(
     Future<void> Function(Future<void> Function() op) runOnUi,
   ) async {
     _prefs.webview = 'main';
     await runOnUi(() async {
-      if (!_popupShown) {
-        _bgVisible = false;
-      } else {
-        switch (_popupAlign) {
-          case 'left':
-            _startAnimation(_bodyTrack, LegacyAnim.outLeft);
-          case 'right':
-            _startAnimation(_bodyTrack, LegacyAnim.outRight);
-          case 'top':
-            _startAnimation(_bodyTrack, LegacyAnim.outTop);
-          case 'bottom':
-            _startAnimation(_bodyTrack, LegacyAnim.outBottom);
-          default:
-            _bgVisible = false;
-            _popupShown = false;
-        }
-      }
+      _popupState.close();
       _refresh();
     });
   }
@@ -874,54 +829,13 @@ class _MainScreenState extends State<MainScreen>
         .catchError((Object _) {});
   }
 
-  void _startAnimation(AnimTrack track, LegacyAnim anim) {
-    track.start(anim);
+  void _ensureTicker() {
     if (!_ticker.isActive) _ticker.start();
   }
 
-  /// 원본 onCreate에서 애니메이션마다 붙인 리스너(y: 왼쪽, z: 오른쪽, A: 위, x: 아래).
-  void Function() _animationListener(LegacyAnim anim) {
-    switch (anim) {
-      case LegacyAnim.inRight:
-      case LegacyAnim.outRight:
-        return () {
-          if (_popupShown) {
-            _bgVisible = false;
-            _bodyTrack.clear();
-            _popupShown = false;
-          } else {
-            _popupShown = _prefs.webview != 'main';
-          }
-        };
-      case LegacyAnim.inLeft:
-      case LegacyAnim.outLeft:
-      case LegacyAnim.inTop:
-      case LegacyAnim.outTop:
-      case LegacyAnim.inBottom:
-      case LegacyAnim.outBottom:
-        return () {
-          if (!_popupShown) {
-            _popupShown = true;
-            return;
-          }
-          _bgVisible = false;
-          _bodyTrack.clear();
-          _popupShown = false;
-        };
-    }
-  }
-
-  /// 배경이 보이거나 애니메이션이 붙어 있으면 그려진다(그려질 때만 애니메이션 시간이 흐름).
-  bool get _bgDrawn => _bgVisible || _bgTrack.attached;
-
   void _onTick(Duration _) {
-    if (_bgDrawn) {
-      final Duration now =
-          SchedulerBinding.instance.currentSystemFrameTimeStamp;
-      _bgTrack.tick(now);
-      if (_bgDrawn) _bodyTrack.tick(now);
-    }
-    if (!(_bgDrawn && (_bgTrack.running || _bodyTrack.running))) _ticker.stop();
+    _popupState.tick(SchedulerBinding.instance.currentSystemFrameTimeStamp);
+    if (!_popupState.animating) _ticker.stop();
     _refresh();
   }
 
@@ -933,16 +847,16 @@ class _MainScreenState extends State<MainScreen>
   /// 아직 새 화면이 그려지지 않은 것이 있으면 켠다. 연결 안내가 떠 있으면 그 안내가 대신한다.
   bool get _loading {
     bool loading(WebEntry? e) => e != null && e.busy && e.problem == null;
-    return loading(_main) || (_bgDrawn && _frame.any(loading));
+    // 숨겨 둔 창(사용자 조작 없이 열린 창)은 로딩 표시를 켜지 않는다.
+    return loading(_main) ||
+        (_popupState.drawn &&
+            _frame.any((WebEntry e) => !e.background && loading(e)));
   }
 
   /// 팝업 연결 안내의 `닫기`: 뒤로 키로 팝업을 닫을 때와 같다.
   void _closePopupFromNotice() {
     _queue = _queue
-        .then((_) async {
-          await _a0((Future<void> Function() op) => op());
-          _mainOwner = true;
-        })
+        .then((_) => _a0((Future<void> Function() op) => op()))
         .catchError((Object _) {});
   }
 
@@ -1189,28 +1103,80 @@ class _MainScreenState extends State<MainScreen>
   // window.open 창
   // ======================================================================
 
-  Future<void> _createWindow(String parent, int token) async {
+  /// 사용자 조작 없이 열린 창을 숨겨 두는 가장 긴 시간. 이 안에 스스로 닫히지 않으면 보인다.
+  /// ECAMPUS의 Panopto 로그인 창은 10~15초 뒤 스스로 닫혔다(2026-10-27 에뮬레이터).
+  static const Duration backgroundRevealAfter = Duration(seconds: 20);
+
+  /// 숨겨 둔 창의 페이지에 사용자가 채울 칸(글자·비밀번호 입력, 선택 상자, 체크 칸 등)이
+  /// 보이는지. 숨은 값과 제출 버튼만 있는 자동 제출 페이지(SSO)는 false다.
+  static const String _needsUserInputScript = """
+(function () {
+  var fields = document.querySelectorAll(
+    'input:not([type=hidden]):not([type=submit]):not([type=button]):not([type=image]):not([type=reset]), textarea, select');
+  for (var i = 0; i < fields.length; i++) {
+    var r = fields[i].getBoundingClientRect();
+    var s = window.getComputedStyle(fields[i]);
+    if (r.width > 0 && r.height > 0 && s.visibility !== 'hidden') return true;
+  }
+  return false;
+})()""";
+
+  /// 숨겨 둔 창의 [backgroundRevealAfter] 타이머.
+  final Map<WebEntry, Timer> _revealTimers = <WebEntry, Timer>{};
+
+  /// `onCreateWindow`: 자식(팝업이 연 창)·손자(자식이 연 창) 웹뷰를 만들어 틀 위에 얹는다.
+  ///
+  /// 원본은 열리는 창을 모두 바로 보였다. 그래서 ECAMPUS를 열면 페이지가 스스로 연 Panopto
+  /// 로그인 창(`panopto_login_popup`)이 흰 화면과 로딩 표시로 ECAMPUS를 10~15초 덮었다가
+  /// 스스로 닫혔다. 개선판은 사용자가 누르지 않았는데 열린 창([userGesture]가 false)을 처음에
+  /// 숨겨 둔다(보이지 않고, 터치·뒤로 키·로딩 표시도 없음). 브라우저였다면 다른 탭에서 조용히
+  /// 끝났을 창이다. 숨겨 둔 창은 다음 중 하나면 원본처럼 보인다.
+  /// - 페이지에 사용자가 채울 칸이 보인다(로그인·동의 화면).
+  /// - [backgroundRevealAfter]가 지나도 스스로 닫히지 않았다.
+  ///
+  /// 첨부파일 창은 링크를 눌러 열리므로 바로 보이고(내려받기만 하면 PR #6 규칙대로 닫힘), 숨겨
+  /// 둔 창이 내려받기만 해도 같은 규칙으로 닫힌다. JS 알림·파일 선택은 시스템 창이라 숨겨 둔
+  /// 창에서도 보인다.
+  Future<void> _createWindow(
+    String parent,
+    int token, {
+    required bool userGesture,
+  }) async {
     final bool isChild = parent == 'popup';
-    if (isChild) {
-      _childOpen = true;
-    } else {
-      _grandchildOpen = true;
+    final bool background = !userGesture;
+    if (!background) {
+      if (isChild) {
+        _childOpen = true;
+      } else {
+        _grandchildOpen = true;
+      }
     }
-    final WebEntry entry = await WebEntry.create(
+    late final WebEntry entry;
+    entry = await WebEntry.create(
       isChild ? 'child' : 'grandchild',
       onChanged: _refresh,
       fullscreen: this,
       onPageFinished: (String url) {
-        // 자식 창에서 통합정보시스템 첫 화면이 끝나면 뒤로가기(원본 그대로).
+        // 자식 창에서 통합정보시스템 첫 화면이 끝나면 뒤로가기(원본 그대로). 숨겨 둔 창이면 그
+        // 창에서만 뒤로 간다(보이는 창과 팝업에는 손대지 않음).
         if (isChild && url == 'https://tis.ut.ac.kr/main.do') {
-          _queue = _queue.then((_) => _y0()).catchError((Object _) {});
+          _queue = _queue
+              .then((_) => entry.background ? _windowBack(entry) : _y0())
+              .catchError((Object _) {});
         }
+        if (entry.background) _revealIfNeedsUser(entry);
       },
       // 첨부파일처럼 내려받기만 하고 그린 페이지가 없는 창은 바로 닫는다. 원본은 빈 창이 남아
       // 팝업이 하얗게 보였고, 뒤로 키 한 번에 공지 팝업까지 닫혔다.
       onDownloadOnly: _removeWindow,
     );
-    if (isChild) {
+    entry.background = background;
+    if (background) {
+      _revealTimers[entry] = Timer(
+        backgroundRevealAfter,
+        () => _revealWindow(entry),
+      );
+    } else if (isChild) {
       _child = entry;
     } else {
       _grandchild = entry;
@@ -1218,6 +1184,36 @@ class _MainScreenState extends State<MainScreen>
     _frame.add(entry);
     _refresh();
     await NativeBridge.attachWindow(token, entry.id);
+  }
+
+  /// 숨겨 둔 창의 페이지가 끝나면, 사용자가 채울 칸이 보이는지 보고 보이면 창을 보인다.
+  Future<void> _revealIfNeedsUser(WebEntry entry) async {
+    try {
+      final Object result = await entry.controller.runJavaScriptReturningResult(
+        _needsUserInputScript,
+      );
+      if (result == true || result == 'true') _revealWindow(entry);
+    } catch (_) {}
+  }
+
+  /// 숨겨 둔 창을 원본처럼 보인다(팝업 위를 덮고 뒤로 키도 받는다). 그새 팝업이 닫혔으면
+  /// 보일 곳이 없으므로 창을 닫는다.
+  void _revealWindow(WebEntry entry) {
+    _revealTimers.remove(entry)?.cancel();
+    if (!entry.background || !_frame.contains(entry)) return;
+    if (!_popupState.drawn) {
+      _removeWindow(entry);
+      return;
+    }
+    entry.background = false;
+    if (entry.kind == 'child') {
+      _child = entry;
+      _childOpen = true;
+    } else {
+      _grandchild = entry;
+      _grandchildOpen = true;
+    }
+    _refresh();
   }
 
   /// 자식·손자 창의 `window.close()`(Kotlin `onCloseWindow`, 닫힌 창의 웹뷰 id).
@@ -1237,6 +1233,7 @@ class _MainScreenState extends State<MainScreen>
   /// (통합본 9-5: 해제되지 않은 웹뷰가 ECAMPUS·첨부 내려받기마다 쌓였다). 닫힌 창은 뒤로 키도
   /// 받지 않는다.
   void _removeWindow(WebEntry entry) {
+    _revealTimers.remove(entry)?.cancel();
     if (!_frame.remove(entry)) return; // 이미 닫혔다
     if (identical(entry, _child)) {
       _child = null;
@@ -1264,26 +1261,14 @@ class _MainScreenState extends State<MainScreen>
 
   Future<void> _y0() async {
     if (_grandchildOpen) {
-      final WebEntry? web = _grandchild;
-      if (web != null && await web.canGoBack()) {
-        await web.goBack();
-      } else {
-        web?.loadJavascript('window.close();');
-        _grandchildOpen = false;
-      }
+      if (await _windowBack(_grandchild)) _grandchildOpen = false;
       return;
     }
     if (_childOpen) {
-      final WebEntry? web = _child;
-      if (web != null && await web.canGoBack()) {
-        await web.goBack();
-      } else {
-        web?.loadJavascript('window.close();');
-        _childOpen = false;
-      }
+      if (await _windowBack(_child)) _childOpen = false;
       return;
     }
-    if (_mainOwner) {
+    if (_popupState.mainOwner) {
       final WebEntry? web = _main;
       if (web != null && await web.canGoBack()) {
         await web.goBack();
@@ -1300,9 +1285,19 @@ class _MainScreenState extends State<MainScreen>
     if (popup != null && await popup.canGoBack()) {
       await popup.goBack();
     } else {
-      await _a0((Future<void> Function() op) => op());
-      _mainOwner = true;
+      await _a0((Future<void> Function() op) => op()); // 뒤로 키 주인도 메인으로
     }
+  }
+
+  /// 자식·손자 창 하나의 뒤로가기(y0 1·2번): 뒤로 갈 수 있으면 뒤로, 아니면 `window.close()`
+  /// 하고 true(창을 닫음).
+  Future<bool> _windowBack(WebEntry? web) async {
+    if (web != null && await web.canGoBack()) {
+      await web.goBack();
+      return false;
+    }
+    web?.loadJavascript('window.close();');
+    return true;
   }
 
   // ======================================================================
@@ -1419,7 +1414,7 @@ class _MainScreenState extends State<MainScreen>
                                 // GONE인 동안에도 웹뷰는 붙어 있다(Android 뷰처럼).
                                 Positioned.fill(
                                   child: Offstage(
-                                    offstage: !_bgDrawn,
+                                    offstage: !_popupState.drawn,
                                     child: _popupLayer(constraints.biggest),
                                   ),
                                 ),
@@ -1476,15 +1471,11 @@ class _MainScreenState extends State<MainScreen>
   }
 
   Widget _mainHeaderBody() {
-    return Container(
-      decoration: _headerHasBitmap ? null : _headerBox.decoration(),
+    return BoxBackground(
+      box: _headerBox,
       child: Stack(
         alignment: Alignment.center,
         children: <Widget>[
-          if (_headerHasBitmap && _headerBitmap != null)
-            Positioned.fill(
-              child: RawImage(image: _headerBitmap, fit: BoxFit.fill),
-            ),
           if (_center.visible)
             SizedBox(
               height: 50,
@@ -1524,9 +1515,9 @@ class _MainScreenState extends State<MainScreen>
     final List<_MenuButton>? items = _footerItems;
     return BarTextScale(
       maxScaleFactor: BarTextScale.bar,
-      child: Container(
+      child: BoxBackground(
+        box: _footerBox,
         height: 50,
-        decoration: _footerBox.decoration(),
         child: Row(
           children: items == null
               ? const <Widget>[LegacyButton(text: '*')]
@@ -1560,16 +1551,18 @@ class _MainScreenState extends State<MainScreen>
 
   /// `popup_bg_container`
   Widget _popupLayer(Size parent) {
-    final double width = _popupWidthPx == null
-        ? parent.width
-        : _popupWidthPx! / _dpr;
-    final double height = _popupHeightPx == null
-        ? parent.height
-        : _popupHeightPx! / _dpr;
+    final String? align = _popupSizeAlign;
+    final PopupSizePx? size = align == null
+        ? null
+        : popupSizePx(align, _screenWidthPx, _screenHeightPx);
+    final int? widthPx = size?.width;
+    final int? heightPx = size?.height;
+    final double width = widthPx == null ? parent.width : widthPx / _dpr;
+    final double height = heightPx == null ? parent.height : heightPx / _dpr;
     final Size self = Size(width, height);
     return SizedBox.expand(
       child: Transform.translate(
-        offset: _bgTrack.offset(parent, parent),
+        offset: _popupState.bg.offset(parent, parent),
         transformHitTests: false, // 옛 Android 애니메이션은 터치 위치를 옮기지 않는다
         child: GestureDetector(
           onTap: _onBackgroundTap,
@@ -1578,7 +1571,7 @@ class _MainScreenState extends State<MainScreen>
             child: Align(
               alignment: _bgGravity,
               child: Transform.translate(
-                offset: _bodyTrack.offset(parent, self),
+                offset: _popupState.body.offset(parent, self),
                 transformHitTests: false,
                 child: SizedBox(
                   width: width,
@@ -1615,9 +1608,9 @@ class _MainScreenState extends State<MainScreen>
         if (_popupFooterVisible)
           BarTextScale(
             maxScaleFactor: BarTextScale.bar,
-            child: Container(
+            child: BoxBackground(
+              box: _popupFooterBox,
               height: 50,
-              decoration: _popupFooterBox.decoration(),
               child: Row(children: _popupFooterItems.map(_slotButton).toList()),
             ),
           ),
@@ -1626,6 +1619,10 @@ class _MainScreenState extends State<MainScreen>
   }
 
   Widget _frameChild(WebEntry entry) {
+    // 숨겨 둔 창: 그리지 않고 터치도 아래 팝업으로 넘긴다. 웹뷰는 붙어 있어 페이지는 계속 돈다.
+    if (entry.background) {
+      return IgnorePointer(child: Opacity(opacity: 0, child: entry.view));
+    }
     if (entry.kind != 'popup') return entry.view;
     return ClipPath(
       clipper: RoundedWebViewClipper(
@@ -1668,9 +1665,9 @@ class _MainScreenState extends State<MainScreen>
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {},
-      child: Container(
+      child: BoxBackground(
+        box: _popupHeaderBox,
         height: 58,
-        decoration: _popupHeaderBox.decoration(),
         child: Stack(
           alignment: Alignment.center,
           children: <Widget>[

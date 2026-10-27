@@ -95,3 +95,24 @@ class AnimTrack {
     };
   }
 }
+
+/// 팝업 크기(px). null이면 꽉 채움(match_parent).
+typedef PopupSizePx = ({int? width, int? height});
+
+/// 정렬별 팝업 크기(HANDOFF 5.7): `left`·`right`는 화면폭×0.8 × 꽉, `top`·`bottom`은
+/// 꽉 × 화면높이×0.8, `center`는 둘 다 0.8, `full`은 꽉. 화면 크기는 `Display.getSize`(px).
+/// 그 밖의 정렬이면 null(원본은 크기를 바꾸지 않는다).
+///
+/// 원본은 팝업을 열 때 한 번 계산했다. 개선판은 그릴 때마다 지금 화면 크기로 계산해서, 분할
+/// 화면·창 크기가 바뀌어도 열려 있는 팝업이 창에 맞는다(통합본 6-12).
+PopupSizePx? popupSizePx(String align, int screenWidthPx, int screenHeightPx) {
+  final int w80 = (screenWidthPx * 0.8).truncate();
+  final int h80 = (screenHeightPx * 0.8).truncate();
+  return switch (align) {
+    'left' || 'right' => (width: w80, height: null),
+    'top' || 'bottom' => (width: null, height: h80),
+    'center' => (width: w80, height: h80),
+    'full' => (width: null, height: null),
+    _ => null,
+  };
+}

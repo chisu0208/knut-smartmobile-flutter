@@ -5,7 +5,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.res.Configuration
 import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.Uri
@@ -175,7 +174,15 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
                 result.success(null)
             }
             "installWebView" -> {
-                webViews.install(call.argument<Number>("id")!!.toLong(), call.argument<String>("kind")!!)
+                webViews.install(
+                    call.argument<Number>("id")!!.toLong(),
+                    call.argument<String>("kind")!!,
+                    call.argument<Int>("textZoom")!!,
+                )
+                result.success(null)
+            }
+            "setWebTextZoom" -> {
+                webViews.setTextZoom(call.arguments<Int>()!!)
                 result.success(null)
             }
             "attachWindow" -> {
@@ -496,12 +503,6 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
             else -> data.data?.let { arrayOf(it) }
         }
         callback.onReceiveValue(uris)
-    }
-
-    /** 휴대폰 글자 크기 설정을 바꾸면 웹 글자 크기도 따라간다(통합본 5-1). 매니페스트 configChanges에 fontScale이 있다. */
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-        webViews.applyTextZoom()
     }
 
     override fun onDestroy() {

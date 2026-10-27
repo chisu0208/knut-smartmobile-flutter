@@ -42,7 +42,6 @@ import io.flutter.plugins.webviewflutter.WebChromeClientProxyApi
 import io.flutter.plugins.webviewflutter.WebViewFlutterAndroidExternalApi
 import java.net.URISyntaxException
 import java.net.URLDecoder
-import kotlin.math.roundToInt
 
 /**
  * webview_flutter가 만든 네이티브 WebView에 원본 MainActivity의 WebView 설정을 그대로 입힌다.
@@ -68,7 +67,7 @@ class WebViewBridge(private val activity: MainActivity) {
     }
 
     @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
-    fun install(id: Long, kind: String) {
+    fun install(id: Long, kind: String, textZoom: Int) {
         val webView = webView(id) ?: return
         val s = webView.settings
         // 원본은 출시 버전에서도 켜 두었다. 개선판은 debug 빌드에서만 켠다(통합본 9-1).
@@ -85,8 +84,9 @@ class WebViewBridge(private val activity: MainActivity) {
         s.displayZoomControls = false
         s.javaScriptEnabled = true
         s.domStorageEnabled = true
-        // 원본은 85% 고정이었다. 개선판은 100%에 휴대폰 글자 크기 설정을 곱한다(통합본 5-1).
-        s.textZoom = textZoom()
+        // 원본은 85% 고정이었다. 개선판은 휴대폰 글자 크기 설정을 상한까지 따른다(통합본 5-1).
+        // 값은 Dart가 정해 보낸다(`web_entry.dart` `textZoomFor`).
+        s.textZoom = textZoom
         installed.add(id)
         when (kind) {
             "main" -> {
@@ -124,10 +124,12 @@ class WebViewBridge(private val activity: MainActivity) {
             }
         }
         // 클라이언트를 감싸려면 현재 클라이언트를 읽어야 해서 Android 8.0 이상에서만 가능하다.
+        // 원본은 메인 웹뷰의 크롬 클라이언트를 두 번 설정해서 JS 알림창이 시스템 기본 창(제목
+        // `'https://mobile.ut.ac.kr' 페이지 내용:`)으로 떴다. 개선판은 메인도 팝업과 같은 창을 쓴다.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             webView.webViewClient = ShellWebViewClient(id, kind, webView.webViewClient)
             val chrome = webView.webChromeClient
-            if (kind != "main" && chrome != null) {
+            if (chrome != null) {
                 webView.webChromeClient = ShellChromeClient(id, kind, chrome)
             }
         }
@@ -150,12 +152,8 @@ class WebViewBridge(private val activity: MainActivity) {
         installed.remove(id)
     }
 
-    /** 휴대폰 글자 크기 설정(fontScale)을 반영한 웹 글자 크기(%). */
-    private fun textZoom(): Int = (activity.resources.configuration.fontScale * 100).roundToInt()
-
     /** 앱이 떠 있는 동안 글자 크기 설정을 바꾸면 열려 있는 웹뷰에도 바로 반영한다. */
-    fun applyTextZoom() {
-        val zoom = textZoom()
+    fun setTextZoom(zoom: Int) {
         installed.toList().forEach { id ->
             val webView = webView(id)
             if (webView == null) installed.remove(id) else webView.settings.textZoom = zoom
@@ -393,6 +391,9 @@ class WebViewBridge(private val activity: MainActivity) {
      * 팝업·자식·손자 창의 크롬 클라이언트. 새 창, 창 닫기, JS 알림창, 파일 선택은 원본대로 하고
      * 나머지는 플러그인 클라이언트로 넘긴다. 플러그인이 [WebChromeClientProxyApi.SecureWebChromeClient]만
      * 받으므로 그 클래스를 상속한다.
+     *
+     * 개선판은 메인 웹뷰에도 붙여 JS 알림창(alert/confirm)만 팝업과 같게 띄운다. 메인의 새 창·창
+     * 닫기·파일 선택은 원본처럼 플러그인 클라이언트가 맡는다.
      */
     private inner class ShellChromeClient(
         private val id: Long,
@@ -400,11 +401,18 @@ class WebViewBridge(private val activity: MainActivity) {
         private val inner: WebChromeClient,
     ) : WebChromeClientProxyApi.SecureWebChromeClient() {
         override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
+            // 메인 웹뷰는 여러 창을 끄므로 불리지 않는다. 불리더라도 원본처럼 플러그인 클라이언트에 맡긴다.
+            if (kind == "main") return inner.onCreateWindow(view, isDialog, isUserGesture, resultMsg)
             // 손자 창(원본 C0091f)은 새 창을 만들지 않는다.
             if (kind == "grandchild") return false
             val token = nextToken++
             pendingWindows[token] = resultMsg
-            activity.invokeDart("createWindow", mapOf("parent" to kind, "token" to token))
+            // 개선판: 사용자가 누르지 않았는데 열린 창(ECAMPUS의 Panopto 로그인 창 등)은 Dart가
+            // 처음에 숨겨 둔다(`main_screen.dart` `_createWindow`).
+            activity.invokeDart(
+                "createWindow",
+                mapOf("parent" to kind, "token" to token, "userGesture" to isUserGesture),
+            )
             return true
         }
 
@@ -418,17 +426,17 @@ class WebViewBridge(private val activity: MainActivity) {
 
         override fun onJsAlert(view: WebView, url: String?, message: String?, result: JsResult): Boolean {
             // 원본은 로딩 표시(입력을 막는 창)를 먼저 걷었다. 개선판의 로딩 표시는 입력을 막지 않는다.
-            AlertDialog.Builder(activity)
+            // 원본은 뒤로 키에 확인으로 답만 하고 키를 먹어서 창이 닫히지 않았다(확인을 눌러야
+            // 닫힘). 개선판은 뒤로 키로 창을 닫고 확인으로 한 번만 답한다. 바깥 터치로는 원본처럼
+            // 닫히지 않는다. `확인`을 누르면 취소가 아니라 닫기라서 답이 두 번 가지 않는다.
+            val dialog = AlertDialog.Builder(activity)
                 .setTitle("")
                 .setMessage(message)
-                .setOnKeyListener { _, keyCode, _ ->
-                    if (keyCode == KeyEvent.KEYCODE_BACK) result.confirm()
-                    true
-                }
                 .setPositiveButton("확인") { _, _ -> result.confirm() }
-                .setCancelable(false)
+                .setOnCancelListener { result.confirm() }
                 .create()
-                .show()
+            dialog.setCanceledOnTouchOutside(false)
+            dialog.show()
             return true
         }
 
@@ -450,8 +458,9 @@ class WebViewBridge(private val activity: MainActivity) {
             filePathCallback: ValueCallback<Array<Uri>>,
             fileChooserParams: FileChooserParams,
         ): Boolean {
-            // 손자 창(원본 C0091f)에는 파일 선택이 없다.
+            // 손자 창(원본 C0091f)에는 파일 선택이 없다. 메인 웹뷰도 원본처럼 플러그인 클라이언트에 맡긴다.
             if (kind == "grandchild") return false
+            if (kind == "main") return inner.onShowFileChooser(webView, filePathCallback, fileChooserParams)
             // 원본은 여기서 `파일 선택창을 선택하였습니다.` 토스트를 띄웠다. 개선판은 없앴다(통합본 7-2).
             activity.fileChooserCallback?.onReceiveValue(null)
             activity.fileChooserCallback = filePathCallback
