@@ -73,6 +73,9 @@ class WebEntry {
   /// 페이지 없이 내려받기만 했을 때([create]의 `onDownloadOnly`).
   void Function(WebEntry entry)? _onDownloadOnly;
 
+  /// 사용자 조작 없이 열려 숨겨 둔 창인지(자식·손자만, `main_screen.dart` `_createWindow`).
+  bool background = false;
+
   /// RoundedWebView 모서리(팝업만 사용). 새로 만들면 네 모서리 모두 둥글다.
   bool topLeft = true;
   bool topRight = true;

@@ -407,7 +407,12 @@ class WebViewBridge(private val activity: MainActivity) {
             if (kind == "grandchild") return false
             val token = nextToken++
             pendingWindows[token] = resultMsg
-            activity.invokeDart("createWindow", mapOf("parent" to kind, "token" to token))
+            // 개선판: 사용자가 누르지 않았는데 열린 창(ECAMPUS의 Panopto 로그인 창 등)은 Dart가
+            // 처음에 숨겨 둔다(`main_screen.dart` `_createWindow`).
+            activity.invokeDart(
+                "createWindow",
+                mapOf("parent" to kind, "token" to token, "userGesture" to isUserGesture),
+            )
             return true
         }
 

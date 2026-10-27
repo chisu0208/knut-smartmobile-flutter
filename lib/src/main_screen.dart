@@ -152,7 +152,11 @@ class _MainScreenState extends State<MainScreen>
     NativeBridge.on('createWindow', (MethodCall call) async {
       final Map<Object?, Object?> args =
           call.arguments as Map<Object?, Object?>;
-      await _createWindow(args['parent']! as String, args['token']! as int);
+      await _createWindow(
+        args['parent']! as String,
+        args['token']! as int,
+        userGesture: args['userGesture'] != false,
+      );
     });
     NativeBridge.on(
       'closeWindow',
@@ -843,7 +847,10 @@ class _MainScreenState extends State<MainScreen>
   /// 아직 새 화면이 그려지지 않은 것이 있으면 켠다. 연결 안내가 떠 있으면 그 안내가 대신한다.
   bool get _loading {
     bool loading(WebEntry? e) => e != null && e.busy && e.problem == null;
-    return loading(_main) || (_popupState.drawn && _frame.any(loading));
+    // 숨겨 둔 창(사용자 조작 없이 열린 창)은 로딩 표시를 켜지 않는다.
+    return loading(_main) ||
+        (_popupState.drawn &&
+            _frame.any((WebEntry e) => !e.background && loading(e)));
   }
 
   /// 팝업 연결 안내의 `닫기`: 뒤로 키로 팝업을 닫을 때와 같다.
@@ -1096,28 +1103,80 @@ class _MainScreenState extends State<MainScreen>
   // window.open 창
   // ======================================================================
 
-  Future<void> _createWindow(String parent, int token) async {
+  /// 사용자 조작 없이 열린 창을 숨겨 두는 가장 긴 시간. 이 안에 스스로 닫히지 않으면 보인다.
+  /// ECAMPUS의 Panopto 로그인 창은 10~15초 뒤 스스로 닫혔다(2026-10-27 에뮬레이터).
+  static const Duration backgroundRevealAfter = Duration(seconds: 20);
+
+  /// 숨겨 둔 창의 페이지에 사용자가 채울 칸(글자·비밀번호 입력, 선택 상자, 체크 칸 등)이
+  /// 보이는지. 숨은 값과 제출 버튼만 있는 자동 제출 페이지(SSO)는 false다.
+  static const String _needsUserInputScript = """
+(function () {
+  var fields = document.querySelectorAll(
+    'input:not([type=hidden]):not([type=submit]):not([type=button]):not([type=image]):not([type=reset]), textarea, select');
+  for (var i = 0; i < fields.length; i++) {
+    var r = fields[i].getBoundingClientRect();
+    var s = window.getComputedStyle(fields[i]);
+    if (r.width > 0 && r.height > 0 && s.visibility !== 'hidden') return true;
+  }
+  return false;
+})()""";
+
+  /// 숨겨 둔 창의 [backgroundRevealAfter] 타이머.
+  final Map<WebEntry, Timer> _revealTimers = <WebEntry, Timer>{};
+
+  /// `onCreateWindow`: 자식(팝업이 연 창)·손자(자식이 연 창) 웹뷰를 만들어 틀 위에 얹는다.
+  ///
+  /// 원본은 열리는 창을 모두 바로 보였다. 그래서 ECAMPUS를 열면 페이지가 스스로 연 Panopto
+  /// 로그인 창(`panopto_login_popup`)이 흰 화면과 로딩 표시로 ECAMPUS를 10~15초 덮었다가
+  /// 스스로 닫혔다. 개선판은 사용자가 누르지 않았는데 열린 창([userGesture]가 false)을 처음에
+  /// 숨겨 둔다(보이지 않고, 터치·뒤로 키·로딩 표시도 없음). 브라우저였다면 다른 탭에서 조용히
+  /// 끝났을 창이다. 숨겨 둔 창은 다음 중 하나면 원본처럼 보인다.
+  /// - 페이지에 사용자가 채울 칸이 보인다(로그인·동의 화면).
+  /// - [backgroundRevealAfter]가 지나도 스스로 닫히지 않았다.
+  ///
+  /// 첨부파일 창은 링크를 눌러 열리므로 바로 보이고(내려받기만 하면 PR #6 규칙대로 닫힘), 숨겨
+  /// 둔 창이 내려받기만 해도 같은 규칙으로 닫힌다. JS 알림·파일 선택은 시스템 창이라 숨겨 둔
+  /// 창에서도 보인다.
+  Future<void> _createWindow(
+    String parent,
+    int token, {
+    required bool userGesture,
+  }) async {
     final bool isChild = parent == 'popup';
-    if (isChild) {
-      _childOpen = true;
-    } else {
-      _grandchildOpen = true;
+    final bool background = !userGesture;
+    if (!background) {
+      if (isChild) {
+        _childOpen = true;
+      } else {
+        _grandchildOpen = true;
+      }
     }
-    final WebEntry entry = await WebEntry.create(
+    late final WebEntry entry;
+    entry = await WebEntry.create(
       isChild ? 'child' : 'grandchild',
       onChanged: _refresh,
       fullscreen: this,
       onPageFinished: (String url) {
-        // 자식 창에서 통합정보시스템 첫 화면이 끝나면 뒤로가기(원본 그대로).
+        // 자식 창에서 통합정보시스템 첫 화면이 끝나면 뒤로가기(원본 그대로). 숨겨 둔 창이면 그
+        // 창에서만 뒤로 간다(보이는 창과 팝업에는 손대지 않음).
         if (isChild && url == 'https://tis.ut.ac.kr/main.do') {
-          _queue = _queue.then((_) => _y0()).catchError((Object _) {});
+          _queue = _queue
+              .then((_) => entry.background ? _windowBack(entry) : _y0())
+              .catchError((Object _) {});
         }
+        if (entry.background) _revealIfNeedsUser(entry);
       },
       // 첨부파일처럼 내려받기만 하고 그린 페이지가 없는 창은 바로 닫는다. 원본은 빈 창이 남아
       // 팝업이 하얗게 보였고, 뒤로 키 한 번에 공지 팝업까지 닫혔다.
       onDownloadOnly: _removeWindow,
     );
-    if (isChild) {
+    entry.background = background;
+    if (background) {
+      _revealTimers[entry] = Timer(
+        backgroundRevealAfter,
+        () => _revealWindow(entry),
+      );
+    } else if (isChild) {
       _child = entry;
     } else {
       _grandchild = entry;
@@ -1125,6 +1184,36 @@ class _MainScreenState extends State<MainScreen>
     _frame.add(entry);
     _refresh();
     await NativeBridge.attachWindow(token, entry.id);
+  }
+
+  /// 숨겨 둔 창의 페이지가 끝나면, 사용자가 채울 칸이 보이는지 보고 보이면 창을 보인다.
+  Future<void> _revealIfNeedsUser(WebEntry entry) async {
+    try {
+      final Object result = await entry.controller.runJavaScriptReturningResult(
+        _needsUserInputScript,
+      );
+      if (result == true || result == 'true') _revealWindow(entry);
+    } catch (_) {}
+  }
+
+  /// 숨겨 둔 창을 원본처럼 보인다(팝업 위를 덮고 뒤로 키도 받는다). 그새 팝업이 닫혔으면
+  /// 보일 곳이 없으므로 창을 닫는다.
+  void _revealWindow(WebEntry entry) {
+    _revealTimers.remove(entry)?.cancel();
+    if (!entry.background || !_frame.contains(entry)) return;
+    if (!_popupState.drawn) {
+      _removeWindow(entry);
+      return;
+    }
+    entry.background = false;
+    if (entry.kind == 'child') {
+      _child = entry;
+      _childOpen = true;
+    } else {
+      _grandchild = entry;
+      _grandchildOpen = true;
+    }
+    _refresh();
   }
 
   /// 자식·손자 창의 `window.close()`(Kotlin `onCloseWindow`, 닫힌 창의 웹뷰 id).
@@ -1144,6 +1233,7 @@ class _MainScreenState extends State<MainScreen>
   /// (통합본 9-5: 해제되지 않은 웹뷰가 ECAMPUS·첨부 내려받기마다 쌓였다). 닫힌 창은 뒤로 키도
   /// 받지 않는다.
   void _removeWindow(WebEntry entry) {
+    _revealTimers.remove(entry)?.cancel();
     if (!_frame.remove(entry)) return; // 이미 닫혔다
     if (identical(entry, _child)) {
       _child = null;
@@ -1171,23 +1261,11 @@ class _MainScreenState extends State<MainScreen>
 
   Future<void> _y0() async {
     if (_grandchildOpen) {
-      final WebEntry? web = _grandchild;
-      if (web != null && await web.canGoBack()) {
-        await web.goBack();
-      } else {
-        web?.loadJavascript('window.close();');
-        _grandchildOpen = false;
-      }
+      if (await _windowBack(_grandchild)) _grandchildOpen = false;
       return;
     }
     if (_childOpen) {
-      final WebEntry? web = _child;
-      if (web != null && await web.canGoBack()) {
-        await web.goBack();
-      } else {
-        web?.loadJavascript('window.close();');
-        _childOpen = false;
-      }
+      if (await _windowBack(_child)) _childOpen = false;
       return;
     }
     if (_popupState.mainOwner) {
@@ -1209,6 +1287,17 @@ class _MainScreenState extends State<MainScreen>
     } else {
       await _a0((Future<void> Function() op) => op()); // 뒤로 키 주인도 메인으로
     }
+  }
+
+  /// 자식·손자 창 하나의 뒤로가기(y0 1·2번): 뒤로 갈 수 있으면 뒤로, 아니면 `window.close()`
+  /// 하고 true(창을 닫음).
+  Future<bool> _windowBack(WebEntry? web) async {
+    if (web != null && await web.canGoBack()) {
+      await web.goBack();
+      return false;
+    }
+    web?.loadJavascript('window.close();');
+    return true;
   }
 
   // ======================================================================
@@ -1530,6 +1619,10 @@ class _MainScreenState extends State<MainScreen>
   }
 
   Widget _frameChild(WebEntry entry) {
+    // 숨겨 둔 창: 그리지 않고 터치도 아래 팝업으로 넘긴다. 웹뷰는 붙어 있어 페이지는 계속 돈다.
+    if (entry.background) {
+      return IgnorePointer(child: Opacity(opacity: 0, child: entry.view));
+    }
     if (entry.kind != 'popup') return entry.view;
     return ClipPath(
       clipper: RoundedWebViewClipper(
