@@ -93,15 +93,16 @@
   .st.late { background: var(--amber-soft); color: var(--amber); }
   .st.abs { background: var(--primary-soft); color: var(--primary); }
   .st.none { background: var(--gray-soft); color: var(--sub); }
+  .st.exc { background: #E6EEFD; color: var(--blue); }
 
   /* ① 요약 */
   .rate { display: flex; align-items: center; gap: 16px; padding: 16px 18px; }
   .ring { width: 84px; height: 84px; border-radius: 42px; flex: none; display: flex; align-items: center; justify-content: center;
-          background: conic-gradient(var(--green) 0 92%, var(--amber) 92% 95%, var(--primary) 95% 97%, var(--line) 97% 100%); }
+          background: conic-gradient(var(--green) 0 90%, var(--blue) 90% 92%, var(--amber) 92% 96%, var(--primary) 96% 98%, var(--line) 98% 100%); }
   .ring div { width: 66px; height: 66px; border-radius: 33px; background: var(--white); display: flex; flex-direction: column; align-items: center; justify-content: center; }
   .ring b { font-size: 20px; font-weight: 900; letter-spacing: -0.5px; }
   .ring span { font-size: 10px; color: var(--sub); }
-  .counts { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+  .counts { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
   .counts div { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--sub); }
   .counts i { width: 8px; height: 8px; border-radius: 4px; }
   .counts b { margin-left: auto; font-size: 15px; color: var(--ink); }
@@ -117,7 +118,7 @@
   .course .meta { margin-top: 2px; font-size: 12px; color: var(--sub); }
   .bar { margin-top: 10px; height: 8px; border-radius: 4px; overflow: hidden; display: flex; background: var(--line); }
   .bar i { display: block; height: 100%; }
-  .bar .g { background: var(--green); } .bar .a { background: var(--amber); } .bar .r { background: var(--primary); } .bar .n { background: #C9CDD6; }
+  .bar .g { background: var(--green); } .bar .e { background: var(--blue); } .bar .a { background: var(--amber); } .bar .r { background: var(--primary); } .bar .n { background: #C9CDD6; }
   .tally { margin-top: 8px; display: flex; gap: 12px; font-size: 12px; color: var(--sub); }
   .tally b { color: var(--ink); font-weight: 700; margin-left: 2px; }
   .tally .bad b { color: var(--primary); }
@@ -131,7 +132,7 @@
   .mini div { flex: 1; padding: 10px 0 9px; border-radius: 14px; background: var(--white); text-align: center; }
   .mini b { display: block; font-size: 20px; font-weight: 900; }
   .mini span { font-size: 12px; color: var(--sub); }
-  .mini .g b { color: var(--green); } .mini .a b { color: var(--amber); } .mini .r b { color: var(--primary); } .mini .n b { color: var(--sub); }
+  .mini .g b { color: var(--green); } .mini .e b { color: var(--blue); } .mini .a b { color: var(--amber); } .mini .r b { color: var(--primary); } .mini .n b { color: var(--sub); }
   .weeks { margin: 10px 16px 0; overflow: hidden; }
   .wk { display: flex; align-items: center; min-height: 58px; padding: 8px 14px; gap: 12px; }
   .wk + .wk { border-top: 1px solid var(--line); }
@@ -192,7 +193,8 @@
             <div class="card rate">
               <div class="ring"><div><b class="num">92%</b><span>출석률</span></div></div>
               <div class="counts">
-                <div><i style="background:var(--green)"></i>출석<b class="num">46</b></div>
+                <div><i style="background:var(--green)"></i>출석<b class="num">45</b></div>
+                <div><i style="background:var(--blue)"></i>공결<b class="num">1</b></div>
                 <div><i style="background:var(--amber)"></i>지각<b class="num">2</b></div>
                 <div><i style="background:var(--primary)"></i>결석<b class="num">1</b></div>
                 <div><i style="background:#C9CDD6"></i>미입력<b class="num">1</b></div>
@@ -200,7 +202,7 @@
             </div>
           </div>
           <div class="pad">
-            <div class="warn"><span class="ms fill">warning</span><div><b>운영체제</b> 지각 2회 · 결석 1회<br>지각 3회는 결석 1회로 처리돼요</div></div>
+            <div class="warn"><span class="ms fill">warning</span><div><b>운영체제</b>에 지각 2회 · 결석 1회가 있어요<br>과목 상세에서 날짜를 확인해 보세요</div></div>
           </div>
           <div class="sec">과목별 출결<small>5과목</small></div>
           <div class="card course">
@@ -212,8 +214,8 @@
           <div class="card course">
             <div class="top"><b>운영체제</b><span class="st late"><span class="ms fill">schedule</span>주의</span><span class="ms">chevron_right</span></div>
             <div class="meta">화 1·2교시</div>
-            <div class="bar"><i class="g" style="width:75%"></i><i class="a" style="width:17%"></i><i class="r" style="width:8%"></i></div>
-            <div class="tally"><span>출석<b class="num">9</b></span><span class="bad">지각<b class="num">2</b></span><span class="bad">결석<b class="num">1</b></span></div>
+            <div class="bar"><i class="g" style="width:67%"></i><i class="e" style="width:8%"></i><i class="a" style="width:17%"></i><i class="r" style="width:8%"></i></div>
+            <div class="tally"><span>출석<b class="num">8</b></span><span>공결<b class="num">1</b></span><span class="bad">지각<b class="num">2</b></span><span class="bad">결석<b class="num">1</b></span></div>
           </div>
           <div class="card course">
             <div class="top"><b>데이터베이스</b><span class="st ok"><span class="ms fill">check_circle</span>출석 100%</span><span class="ms">chevron_right</span></div>
@@ -231,7 +233,7 @@
         </div>
         <div class="gesture"></div>
       </div></div>
-      <p class="cap"><b>① 출결 요약</b><br><span>브라우저로 나가지 않고 앱 안 출결 탭에서 열립니다. 이번 학기 출석률과 과목별 출석·지각·결석 횟수를 한눈에 보여주고, 주의할 과목을 먼저 알려줍니다.</span></p>
+      <p class="cap"><b>① 출결 요약</b><br><span>브라우저로 나가지 않고 앱 안 출결 탭에서 열립니다. 이번 학기 출석률과 과목별 출석·공결·지각·결석 횟수를 한눈에 보여주고, 지각·결석이 있는 과목을 먼저 알려줍니다.</span></p>
     </div>
 
     <!-- ② 과목 상세 -->
@@ -241,7 +243,8 @@
         <div class="appbar back"><div class="icon-btn"><span class="ms">arrow_back</span></div><h2>운영체제</h2><div class="icon-btn"><span class="ms">swap_horiz</span></div></div>
         <div class="content">
           <div class="mini">
-            <div class="g"><b class="num">9</b><span>출석</span></div>
+            <div class="g"><b class="num">8</b><span>출석</span></div>
+            <div class="e"><b class="num">1</b><span>공결</span></div>
             <div class="a"><b class="num">2</b><span>지각</span></div>
             <div class="r"><b class="num">1</b><span>결석</span></div>
             <div class="n"><b class="num">0</b><span>미입력</span></div>
@@ -262,7 +265,7 @@
               <div class="w"><b>5주차</b><span class="num">9/29 화</span></div>
               <div class="ss">
                 <div class="s"><span>1교시</span><span class="st late"><span class="ms fill">schedule</span>지각</span></div>
-                <div class="s"><span>2교시</span><span class="st ok"><span class="ms fill">check_circle</span>출석</span></div>
+                <div class="s"><span>2교시</span><span class="st exc"><span class="ms fill">event_available</span>공결</span></div>
               </div>
             </div>
             <div class="wk">
@@ -297,7 +300,7 @@
         </div>
         <div class="gesture"></div>
       </div></div>
-      <p class="cap"><b>② 과목 상세</b><br><span>숫자 대신 "6주차 · 10/6 화"처럼 주차와 날짜를 보여주고, 출석·지각·결석·미입력을 색과 아이콘으로 구분합니다. 지각·결석만 골라 볼 수 있습니다.</span></p>
+      <p class="cap"><b>② 과목 상세</b><br><span>숫자 대신 "6주차 · 10/6 화"처럼 주차와 날짜를 보여주고, 출석·공결·지각·결석·미입력을 색과 아이콘으로 구분합니다. 지각·결석만 골라 볼 수 있습니다.</span></p>
     </div>
 
     <!-- ③ 오늘 수업 -->
@@ -315,7 +318,7 @@
             <div class="cls now">
               <span class="now-tag">수업 중</span>
               <div class="time"><b class="num">13:00</b><span>5·6교시</span></div>
-              <div class="body"><b>모바일프로그래밍</b><div class="where"><span class="ms">location_on</span>미래융합정보관 205</div><span class="st none"><span class="ms">hourglass_top</span>미입력 · 수업 뒤 반영</span></div>
+              <div class="body"><b>모바일프로그래밍</b><div class="where"><span class="ms">location_on</span>미래융합정보관 205</div><span class="st none"><span class="ms">hourglass_top</span>미입력</span></div>
             </div>
             <div class="cls">
               <div class="time"><b class="num">16:00</b><span>8·9교시</span></div>
@@ -325,11 +328,12 @@
           <div class="sec" style="padding-top:18px">상태 표시</div>
           <div class="legend">
             <span class="st ok"><span class="ms fill">check_circle</span>출석</span>
+            <span class="st exc"><span class="ms fill">event_available</span>공결</span>
             <span class="st late"><span class="ms fill">schedule</span>지각</span>
             <span class="st abs"><span class="ms fill">cancel</span>결석</span>
             <span class="st none"><span class="ms">hourglass_top</span>미입력</span>
           </div>
-          <div class="help"><span class="ms fill">info</span><div>출결이 잘못 기록됐나요? <b>과목 상세에서 이의 신청</b>을 할 수 있어요</div></div>
+          <div class="help"><span class="ms fill">info</span><div>출결은 <b>학교 전자출결 시스템의 기록</b>을 그대로 보여줘요</div></div>
         </div>
         <div class="nav">
           <div><i><span class="ms">home</span></i>홈</div>
@@ -345,7 +349,7 @@
 
   </div>
 
-  <p class="foot">해결하는 개선점(통합본): 4-9 앱 안에서 표시 · 4-10 상태별 색과 아이콘 · 4-11 과목별 출석·결석 횟수 요약 · 4-12 "1주차" 표기 · 4-13 앱 전체 색 통일 · 8-7 과목별 출석 요약.<br>과목·시간·강의실·출결 기록은 시연용 예시입니다. 지각 처리 규칙과 이의 신청은 학교 출결 시스템의 실제 기능에 맞춰 바꿔야 합니다.</p>
+  <p class="foot">해결하는 개선점(통합본): 4-9 앱 안에서 표시 · 4-10 상태별 색과 아이콘 · 4-11 과목별 출석·결석 횟수 요약 · 4-12 "1주차" 표기 · 4-13 앱 전체 색 통일 · 8-7 과목별 출석 요약.<br>과목·시간·강의실·출결 기록은 시연용 예시입니다. 화면에 쓰는 항목(과목, 주차, 날짜, 교시, 시각, 강의실, 출결 상태)은 학교 전자출결 시스템이 주는 데이터에 맞췄습니다(2026-10-27 확인).</p>
 </div>
 <script>
   const s = new URLSearchParams(location.search).get('s');
