@@ -7,6 +7,7 @@
 > 갱신: 2026-10-26, 클라우드 세션에서 개선판 1차(1장 맨 앞, 3장, 5장 개선판 표시, 6장). 개선 내용은 [IMPROVEMENTS.md](IMPROVEMENTS.md)
 > 갱신: 2026-10-27, 클라우드 세션에서 개선판 1차 후속(1장 현재 상태, 5장 개선판 표시와 5.21, 6장, 8장 11·12번)
 > 갱신: 2026-10-27, 클라우드 세션에서 PR #7 리뷰 반영(1장 현재 상태의 로그인 후 확인, 5.11·5.12, 6장)
+> 갱신: 2026-10-27, 클라우드 세션에서 개선판 2차(1장 맨 앞·현재 상태, 3장, 6장). 하단 탭 5개와 학식·교통 새 화면, [IMPROVEMENTS.md](IMPROVEMENTS.md) 10절
 > 이 문서만 읽고 바로 이어서 작업할 수 있도록, 원본 코드를 읽으며 확인한 동작 규칙을 모두 적었다.
 
 ---
@@ -17,6 +18,7 @@
 >
 > - 개선판 1차(2026-10-26): 앱(Flutter·Kotlin 껍데기)에서 고칠 수 있는 문제점만 고쳤다. 화면 구성(웹 페이지를 띄우는 방식, 하단 바, 메뉴)은 그대로다. 하단 탭·학식·교통·길찾기·도서관 새 화면(`mockups/`)은 다음 단계다.
 > - 개선판 1차 후속(2026-10-27): 큰 글자에서 웹 페이지가 깨지는 문제(웹 글자 1.3배 상한), 원본 버그로 남겨 두었던 앱 쪽 동작(5.21), 창 크기가 바뀔 때 팝업 크기(6-12). 아래 "현재 상태"
+> - **개선판 2차**(2026-10-27): 앱 하단 탭 5개(홈·출결·도서관·교통·학식), 학식·교통 탭(앱이 그리는 새 화면, 앱 안 고정 데이터), 출결·도서관 탭(학교 사이트를 탭 안 웹 화면으로), 대표색을 팀원 도서관 Figma 토큰(#A3162B)으로. 홈 탭은 지금 메인 화면 그대로이고 서버 하단 바는 홈 탭 위쪽 막대로 옮겼다. 길찾기 새 화면은 3차, 도서관 새 화면·홈 요약·출석 요약은 다음 단계. [IMPROVEMENTS.md](IMPROVEMENTS.md) 10절
 > - 고친 항목(통합본 번호), 원본·이식판과 달라진 동작, 고치지 않은 항목과 이유, 에뮬레이터·실기기 확인 목록: [IMPROVEMENTS.md](IMPROVEMENTS.md)
 > - 이 장의 나머지(원칙 "개선 없이 순수 이식", 사용자 결정, 확인 기록)와 5장(원본 동작 규칙)은 이식판 기준 기록이다. 5장 규칙 가운데 개선판에서 바뀐 것에는 **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md))** 표시를 달았다.
 
@@ -33,6 +35,7 @@
 
 > **개선판(2026-10-27)**
 >
+> - **개선판 2차**(클라우드 세션, `main` `fb65d50`에서 새 브랜치): 하단 탭·학식·교통·출결·도서관 탭과 대표색. `flutter analyze` 문제 없음, 시험 140개 통과(1차 82 + 2차 58), `flutter build apk --debug` 성공(패키지·라벨·권한 1차와 같음). 데이터는 학교 홈페이지에서 2026-10-27에 가져온 앱 안 고정 데이터(`assets/data/`, 다시 만들기 `tool/make_data.py`). **에뮬레이터 확인 전**: [IMPROVEMENTS.md](IMPROVEMENTS.md) 9절 38~56번. 빠진 데이터(증평 이번 주 식단, 의왕 식단, 증평·의왕 길찾기 divisionId 등)는 10.7절
 > - **PR #6(개선판 1차) merge**: `main` = `ab2ca43`.
 > - **로컬 에뮬레이터 확인**(Pixel 7 AVD, Android 17, merge 전 `3ed4065`): 설치·아이콘(이식판과 따로 설치, 학교 로고 아이콘, 토스트 아이콘도 로고), 첫 실행에 권한 창 없음·QR 때 카메라만, 비행기 모드로 시작 → 안내와 다시 시도 → 메인, 첨부 내려받기(자식 창이 바로 닫히고 공지가 보임, 뒤로 키 한 번에 메인), 첫 실행 뒤로 키(404 없이 종료 안내), QR 화면 색·닫기 버튼, `dialog` 버튼 글자, 글자 크기(기본 100%, 200%에서 팝업 헤더 제목은 칸 안), 닫힌 창 웹뷰 해제(첨부 뒤 자식 창이 DevTools에서 사라짐, 즐겨찾기 팝업 5번 열고 닫아도 웹뷰 2개). 앱 크래시·Dart 예외 로그 없음. 자세한 것은 [IMPROVEMENTS.md](IMPROVEMENTS.md) 9절 표시.
 >   - 찾은 문제: 글자 크기 200%에서 학교 웹 페이지가 깨짐(공지 목록 겹침, 아이콘 이름·학교 이름 잘림) → 1차 후속에서 웹 글자 1.3배 상한
@@ -187,9 +190,11 @@
 | `docs/legacy/AndroidManifest.xml` | 리소스 이름이 풀린 매니페스트 |
 | `스마트모바일 기술 스택.md` | 원본 앱·웹·서버 기술 스택 분석 |
 | `통합본.md` | UI/UX 개선점 목록. 이식판에는 반영하지 않았고, 개선판 1차에서 앱에서 고칠 수 있는 항목을 반영했다([IMPROVEMENTS.md](IMPROVEMENTS.md)) |
-| `IMPROVEMENTS.md` | 개선판 1차에서 고친 것과 고치지 않은 것, 확인 목록 |
+| `IMPROVEMENTS.md` | 개선판 1차·2차에서 고친 것과 고치지 않은 것, 확인 목록 |
 | `lib/`, `android/`, `test/`, `assets/` | Flutter 이식 코드(6장) |
-| `mockups/` | 개선판 새 화면(교통·학식 탭, 길찾기) 목업. `ac7657b`에서 GitHub에 올렸다. 개선판 1차에는 반영하지 않았다(다음 단계) |
+| `mockups/` | 개선판 새 화면(교통·학식 탭, 길찾기) 목업, 팀원 도서관 탭 Figma 캡처(`library/`). 개선판 2차에서 교통·학식 탭과 색 토큰을 반영했다. 길찾기는 3차, 도서관 새 화면은 다음 단계 |
+| `assets/data/` (개선판 2차) | 학식·교통 탭의 앱 안 고정 데이터(`meals.json`, `transit.json`, `holidays.json`). 학교 홈페이지에서 2026-10-27에 가져옴 |
+| `tool/make_data.py`, `tool/data/meals_manual.json` (개선판 2차) | 위 데이터를 다시 만드는 스크립트와, 그림으로만 올라오는 식단(증평)을 옮겨 적는 곳. 사용법은 README "데이터 갱신" |
 | `tool/make_launcher_icons.py` | 개선판 런처 아이콘을 원본 APK의 학교 엠블럼으로 만드는 스크립트 |
 
 ### 파일 이름 대응
@@ -602,14 +607,15 @@ CoordinatorLayout (바깥 여백 1dp)
 ### 6.1 구조
 
 > 개선판 1차(2026-10-26)에서 바뀐 파일과 새 파일을 표에 함께 적었다. 바뀐 동작은 [IMPROVEMENTS.md](IMPROVEMENTS.md).
+> 개선판 2차(2026-10-27)에서 하단 탭과 새 화면 파일을 더했다(아래 "개선판 2차" 표, IMPROVEMENTS.md 10절).
 
 원본 화면 2개(IntroActivity, MainActivity)와 QR 화면을 Flutter 화면으로 옮겼다. Android 쪽 액티비티는 Flutter용 하나(`MainActivity.kt`)뿐이다. 원본에서 Android가 직접 그리거나 처리하던 것(시스템 대화상자, 토스트, 인텐트, 권한, NFC, 비콘, 다운로드, 파일 선택)만 Kotlin이 같은 API로 처리하고, 채널(`kr.ac.ut.mobile.flutter/native`)로 주고받는다.
 
 | 파일 | 원본 | 내용 |
 |---|---|---|
-| `lib/main.dart` | — | 시작: 인트로 → 메인. 모든 화면을 투명 `Material`로 감쌈(6.3). 개선판: 테마 강조색은 학교 대표색 |
+| `lib/main.dart` | — | 시작: 인트로 → 메인. 모든 화면을 투명 `Material`로 감쌈(6.3). 개선판: 테마 강조색은 학교 대표색. 2차: 인트로 뒤 하단 탭 화면(`AppShell`), 홈 탭이 `MainScreen` |
 | `lib/src/intro_screen.dart` | `IntroActivity` | 시작 이미지, 기기 등록(5.2). 개선판: 권한을 묻지 않고, 등록 10초 제한과 연결 안내·다시 시도 |
-| `lib/src/main_screen.dart` | `MainActivity` | 명령 처리기, 메인·팝업 구성, 메뉴·버튼, 대화상자, 로딩, 뒤로가기, NFC·비콘·QR·GPS 연결. 메서드 옆 주석이 원본 이름(`x0`, `E0`, `i1`, …). 개선판: 흔들기(센서) 없앰, 연결 안내, 기능별 권한 요청, 동영상 전체 화면. 1차 후속: 글자 크기 설정 변경 받기, 화면 크기 다시 재기, 원본 버그 고침(5.21). PR #7 리뷰 반영: 사용자 조작 없이 열린 창 숨기기 |
+| `lib/src/main_screen.dart` | `MainActivity` | 명령 처리기, 메인·팝업 구성, 메뉴·버튼, 대화상자, 로딩, 뒤로가기, NFC·비콘·QR·GPS 연결. 메서드 옆 주석이 원본 이름(`x0`, `E0`, `i1`, …). 개선판: 흔들기(센서) 없앰, 연결 안내, 기능별 권한 요청, 동영상 전체 화면. 1차 후속: 글자 크기 설정 변경 받기, 화면 크기 다시 재기, 원본 버그 고침(5.21). PR #7 리뷰 반영: 사용자 조작 없이 열린 창 숨기기. 2차: 홈 탭(뒤로 키는 탭 막대가 넘김), 서버 footer → 위쪽 막대, 홈 쪽 명령이면 홈 탭으로, 출결·도서관 주소 명령은 탭으로, 탭의 서비스 주소 요청(`_requestService`)·로그인 버튼 명령 |
 | `lib/src/web_entry.dart` | `X0()`/`Z0()`/`onCreateWindow` | 웹뷰 하나(메인·팝업·자식·손자) 만들기. 개선판: 불러오기 상태(`page_load.dart`)와 Kotlin 웹뷰 이벤트 연결, 다시 시도, 방문 기록 지우기, 웹 글자 크기(1.3배 상한, `textZoomFor`) |
 | `lib/src/page_load.dart` (개선판) | — | 웹뷰 하나의 본문 불러오기 상태: 로딩 표시, 10초 지연·연결 실패 안내, 다시 시도 방법, 방문 기록 지우기 시점, 내려받기만 한 창 닫기(`closeWindowAfterDownload`) |
 | `lib/src/connection_notice.dart` (개선판) | — | 연결 실패·지연 안내 화면(시작 화면, 메인·팝업 웹뷰) |
@@ -627,6 +633,27 @@ CoordinatorLayout (바깥 여백 1dp)
 | `android/.../WebViewBridge.kt` | WebView 설정·클라이언트 | 원본 설정값, `allytteAndroid` 객체, 링크 처리(sms/tel/mailto/intent/마켓), 다운로드, `window.open`·`window.close`, JS 알림창, 파일 선택. 개선판: 글자 크기(Dart가 정한 값)·확대, 웹뷰 이벤트(`webEvent`), 방문 기록 지우기, 메인 웹뷰 JS 알림창도 팝업과 같게 |
 | `tool/make_launcher_icons.py` (개선판) | `assets/app_icon_1024.png` | 런처 아이콘 만들기 |
 
+개선판 2차(하단 탭과 학식·교통 새 화면, 원본에 없는 화면):
+
+| 파일 | 내용 |
+|---|---|
+| `lib/src/app_shell.dart` | 하단 탭 5개 화면(`AppShell`): `NavigationBar`, `IndexedStack`으로 탭 상태 유지, 뒤로 키 나눠 주기, 홈으로 옮기기, 출결·도서관 주소 넘기기, 전체 화면 동안 탭 막대 숨기기, 학식·교통 데이터 읽기 |
+| `lib/src/shell_link.dart` | 탭 막대와 탭 사이: `AppTab`, `ShellHost`(홈으로·탭 주소·전체 화면), `HomeController`(서비스 주소 요청·로그인), `TabBackHandler`, `WebTabLink`, `TabContext` |
+| `lib/src/home_layout.dart` | 홈 탭 배치(위쪽 막대 / 서버 헤더 / 본문), 위쪽 막대(`HomeTopBar`, 칸 전체가 누르는 곳) |
+| `lib/src/tab_route.dart` | 출결·도서관: 서버 명령에서 탭 주소 꺼내기(`tabRouteOf`), 로그인 버튼 찾기(`isLoginButton`), 홈 웹뷰 서비스 요청과 응답 맞추기(`ServiceRequests`) |
+| `lib/src/web_tab.dart` | 출결·도서관 탭(`WebTab`): 주소 받아 오기, 로그인 필요·열 수 없음 안내, 웹뷰(kind `tab`)와 연결 안내·로딩 막대(`WebSurface`) |
+| `lib/src/web_page_screen.dart` | 앱 안 웹 화면(길찾기, 학교 홈페이지 식단) |
+| `lib/src/meal_tab.dart`, `meal_data.dart` | 학식 탭 화면과 식단 모델·날짜 줄·쉬는 날 계산 |
+| `lib/src/transit_tab.dart`, `transit_data.dart` | 교통 탭 화면과 시간표 모델·다음 버스·등하교 자동 선택 |
+| `lib/src/school_calendar.dart` | 학사일정(쉬는 날·학기), 노선 운행일(`ServiceCalendar`), 날짜·시각 표시, `Clock` |
+| `lib/src/campus_setting.dart` | 학식·교통이 함께 쓰는 캠퍼스 설정과 캠퍼스별 식당(SharedPreferences `app.*`) |
+| `lib/src/app_data.dart` | `assets/data/*.json` 읽기, `OpenPage` |
+| `lib/src/tab_widgets.dart` | 새 화면 부품(제목 줄, 캠퍼스 단추, 선택 칸, 배지, 안내 카드, 기준일) |
+| `lib/src/app_theme.dart` | 새 화면의 Material 3 테마(Figma 토큰) |
+| `lib/src/app_colors.dart` | 2차: Figma 색 토큰 `AppColors`. `schoolColor`는 primary |
+| `android/.../WebViewBridge.kt` | 2차: 웹뷰 kind `tab`(링크·내려받기·JS 알림·파일 선택은 팝업과 같고 `allytteAndroid` 없음, 새 창은 같은 웹뷰) |
+| `assets/data/`, `tool/make_data.py`, `tool/data/meals_manual.json` | 앱 안 고정 데이터와 다시 만드는 스크립트(README "데이터 갱신") |
+
 ### 6.2 웹뷰
 
 - `webview_flutter`(공식)로 웹뷰를 만들고, 플러그인이 제공하는 `WebViewFlutterAndroidExternalApi`로 네이티브 WebView를 받아 원본과 같은 설정과 객체를 붙인다. 그래서 웹 페이지는 원본처럼 `allytteAndroid.allytteCommandHandler(json)`을 그대로 부른다(셰임 주입 불필요).
@@ -643,7 +670,8 @@ CoordinatorLayout (바깥 여백 1dp)
 - 원본 테마가 `Theme.AppCompat.Light`라서 Kotlin이 띄우는 시스템 대화상자(JS 알림, 권한 안내, 루팅)는 AppCompat 테마로 원본과 같은 모양이다. 버튼 색은 colorAccent(원본 #03dac5, 개선판은 학교 대표색 #76161B).
 - Flutter가 그리는 부분(헤더·푸터 버튼, alert·dialog·nfc 대화상자, 로딩 표시)은 원본 XML 크기·색을 dp 그대로 옮겼다. 글꼴만 다를 수 있다(삼성 시스템 글꼴 대신 Flutter 글꼴). 개선판에서는 대화상자 글자도 휴대폰 글자 크기 설정을 따르고(원본은 dp 고정), alert 버튼은 학교 대표색이다.
 - 모든 화면은 `MaterialApp.builder`에서 투명 `Material`로 감싼다(`SmartMobileApp.wrapScreens`). 그래서 크기·색만 정한 글자도 원본 TextView처럼 밑줄 없음, 시스템 글꼴(Roboto), 굵기를 정하지 않으면 보통 굵기로 그려진다. 이전에는 메인 화면 위에 `Material`이 없어 노란 이중 밑줄·monospace·w900으로 나왔다(1장 "고친 것", 테스트 `test/text_style_test.dart`).
-- 앱 화면 크기(`Display.getSize`)는 창 크기에서 상태 표시줄과 내비게이션 바를 뺀 값으로 계산한다.
+- 앱 화면 크기(`Display.getSize`)는 창 크기에서 상태 표시줄과 내비게이션 바를 뺀 값으로 계산한다. 개선판 2차부터는 홈 탭 영역이라 탭 막대 높이도 빠진다(팝업 80% 규칙도 홈 탭 영역 기준).
+- 개선판 2차: 새 화면(탭 막대, 학식, 교통, 출결·도서관 탭, 앱 안 웹 화면)은 Figma 색 토큰으로 만든 Material 3 테마(`app_theme.dart`)를 쓰고, 홈 탭은 위 앱 테마(Material 2) 아래에 있어 1차 모양이 그대로다.
 
 ### 6.4 원본과 다른 점
 
