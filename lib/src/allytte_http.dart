@@ -59,12 +59,16 @@ Future<String> _post(
 /// 메뉴 아이콘·헤더 배경을 내려받는 스레드(`d`/`e`)의 결과.
 sealed class BitmapFetch {
   const BitmapFetch();
+
+  /// 받은 그림. 받지 못했거나 그림이 아니면 null(개선판은 이때 그림 없이 둔다).
+  ui.Image? get image => null;
 }
 
 /// 내려받아 이미지로 읽힘.
 class BitmapLoaded extends BitmapFetch {
   const BitmapLoaded(this.bytes, this.image);
   final Uint8List bytes;
+  @override
   final ui.Image image;
 }
 

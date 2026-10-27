@@ -127,10 +127,12 @@ class WebViewBridge(private val activity: MainActivity) {
             }
         }
         // 클라이언트를 감싸려면 현재 클라이언트를 읽어야 해서 Android 8.0 이상에서만 가능하다.
+        // 원본은 메인 웹뷰의 크롬 클라이언트를 두 번 설정해서 JS 알림창이 시스템 기본 창(제목
+        // `'https://mobile.ut.ac.kr' 페이지 내용:`)으로 떴다. 개선판은 메인도 팝업과 같은 창을 쓴다.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             webView.webViewClient = ShellWebViewClient(id, kind, webView.webViewClient)
             val chrome = webView.webChromeClient
-            if (kind != "main" && chrome != null) {
+            if (chrome != null) {
                 webView.webChromeClient = ShellChromeClient(id, kind, chrome)
             }
         }
@@ -393,6 +395,9 @@ class WebViewBridge(private val activity: MainActivity) {
      * 팝업·자식·손자 창의 크롬 클라이언트. 새 창, 창 닫기, JS 알림창, 파일 선택은 원본대로 하고
      * 나머지는 플러그인 클라이언트로 넘긴다. 플러그인이 [WebChromeClientProxyApi.SecureWebChromeClient]만
      * 받으므로 그 클래스를 상속한다.
+     *
+     * 개선판은 메인 웹뷰에도 붙여 JS 알림창(alert/confirm)만 팝업과 같게 띄운다. 메인의 새 창·창
+     * 닫기·파일 선택은 원본처럼 플러그인 클라이언트가 맡는다.
      */
     private inner class ShellChromeClient(
         private val id: Long,
@@ -400,6 +405,8 @@ class WebViewBridge(private val activity: MainActivity) {
         private val inner: WebChromeClient,
     ) : WebChromeClientProxyApi.SecureWebChromeClient() {
         override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
+            // 메인 웹뷰는 여러 창을 끄므로 불리지 않는다. 불리더라도 원본처럼 플러그인 클라이언트에 맡긴다.
+            if (kind == "main") return inner.onCreateWindow(view, isDialog, isUserGesture, resultMsg)
             // 손자 창(원본 C0091f)은 새 창을 만들지 않는다.
             if (kind == "grandchild") return false
             val token = nextToken++
@@ -450,8 +457,9 @@ class WebViewBridge(private val activity: MainActivity) {
             filePathCallback: ValueCallback<Array<Uri>>,
             fileChooserParams: FileChooserParams,
         ): Boolean {
-            // 손자 창(원본 C0091f)에는 파일 선택이 없다.
+            // 손자 창(원본 C0091f)에는 파일 선택이 없다. 메인 웹뷰도 원본처럼 플러그인 클라이언트에 맡긴다.
             if (kind == "grandchild") return false
+            if (kind == "main") return inner.onShowFileChooser(webView, filePathCallback, fileChooserParams)
             // 원본은 여기서 `파일 선택창을 선택하였습니다.` 토스트를 띄웠다. 개선판은 없앴다(통합본 7-2).
             activity.fileChooserCallback?.onReceiveValue(null)
             activity.fileChooserCallback = filePathCallback

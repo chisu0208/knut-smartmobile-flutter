@@ -16,6 +16,10 @@ class GradientBox {
   Color strokeColor = const Color(0xFFFFFFFF);
   BorderRadius radius;
 
+  /// 배경 그림(`bgImage`). 있으면 색·테두리 대신 그림을 칸에 맞게 늘려 깐다(원본
+  /// `setBackground(BitmapDrawable)`). [BoxBackground]가 그린다.
+  ui.Image? image;
+
   /// `setStroke(N(dp), color)`
   void setStroke(double widthDp, Color color) {
     strokeWidth = widthDp;
@@ -29,6 +33,47 @@ class GradientBox {
         ? Border.all(color: strokeColor, width: strokeWidth)
         : null,
   );
+}
+
+/// 헤더·푸터 칸의 배경: [GradientBox]의 색·테두리, 그림이 있으면 그 그림(상자 모서리대로 자름).
+class BoxBackground extends StatelessWidget {
+  const BoxBackground({
+    super.key,
+    required this.box,
+    this.height,
+    required this.child,
+  });
+
+  final GradientBox box;
+  final double? height;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final ui.Image? image = box.image;
+    if (image == null) {
+      return Container(
+        height: height,
+        decoration: box.decoration(),
+        child: child,
+      );
+    }
+    return SizedBox(
+      height: height,
+      child: ClipRRect(
+        borderRadius: box.radius,
+        child: Stack(
+          fit: StackFit.passthrough,
+          children: <Widget>[
+            Positioned.fill(
+              child: RawImage(image: image, fit: BoxFit.fill),
+            ),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// GradientDrawable `setCornerRadii` 배열: (왼위, 오위, 오아래, 왼아래).

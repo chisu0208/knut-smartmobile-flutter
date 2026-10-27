@@ -56,6 +56,18 @@ class JObj {
     throw JsonFormatError('$name is not a JSONArray');
   }
 
+  /// 개선판 도우미(org.json에는 없음): 값이 객체 하나면 그 객체, 배열이면 그 안의 객체들.
+  /// 그 밖의 형이면 [getJSONObject]처럼 예외.
+  List<JObj> getJSONObjects(String name) {
+    if (get(name) is List<dynamic>) {
+      final JArr array = getJSONArray(name);
+      return <JObj>[
+        for (int i = 0; i < array.length; i++) array.getJSONObject(i),
+      ];
+    }
+    return <JObj>[getJSONObject(name)];
+  }
+
   /// Android `JSONObject.toString()`과 같은 모양으로 직렬화한다.
   @override
   String toString() => androidJsonEncode(map);

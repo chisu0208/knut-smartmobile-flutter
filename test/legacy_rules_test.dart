@@ -33,7 +33,7 @@ void main() {
       expect(() => json.getString('b'), throwsA(isA<JsonFormatError>()));
     });
 
-    test('형이 다르면 예외(메인 헤더 메뉴가 배열이면 중단되는 이유)', () {
+    test('형이 다르면 예외(원본에서 메인 헤더 메뉴가 배열이면 중단된 이유)', () {
       final JObj menu = JObj.parse(
         '{"left":[{"name":"x"}],"right":{"name":"y"}}',
       );

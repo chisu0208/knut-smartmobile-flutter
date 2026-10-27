@@ -93,13 +93,10 @@ class _MainScreenState extends State<MainScreen>
   String? _resultUrl; // f7723g0 (QR·비콘 결과 전송 주소)
   int _backPressedAt = 0; // f7709U0
   JArr? _beaconUuids; // f7711V0
-  ui.Image? _sharedBitmap; // f7721e0 (아이콘·헤더 배경이 함께 쓰는 필드)
 
   // ---- 메인 헤더·본문·푸터 ----
   bool _headerVisible = true;
   final GradientBox _headerBox = GradientBox(color: _white); // f7741y0
-  bool _headerHasBitmap = false; // g1()로 배경이 BitmapDrawable로 바뀌었는지
-  ui.Image? _headerBitmap;
   final _MenuSlot _left = _MenuSlot();
   final _MenuSlot _center = _MenuSlot();
   final _MenuSlot _right = _MenuSlot();
@@ -408,7 +405,7 @@ class _MainScreenState extends State<MainScreen>
         final String bgColor = header.getString('bgColor');
         final String border = header.getString('border');
         _headerBox.color = _backgroundColor(bgColor);
-        if (bgImage != 'null') await _g1(bgImage);
+        await _g1(_headerBox, bgImage);
         _applyStroke(_headerBox, border);
         final JObj menu = header.getJSONObject('menu');
         for (final (String side, _MenuSlot slot) in <(String, _MenuSlot)>[
@@ -421,10 +418,12 @@ class _MainScreenState extends State<MainScreen>
           } else {
             slot.visible = true;
             slot.items = <_MenuButton>[];
-            // 원본은 getJSONObject 뒤에 instanceof를 검사해서 배열이면 여기서 예외로
-            // 나머지 구성(푸터, 주소 불러오기)이 모두 중단된다.
-            final JObj item = menu.getJSONObject(side);
-            slot.items = await _j0(item, 'main_$side');
+            // 원본은 getJSONObject 뒤에 instanceof를 검사해서, 배열이면 여기서 예외로 나머지
+            // 구성(푸터, 주소 불러오기)이 모두 중단됐다(HANDOFF 5.6). 개선판은 팝업 헤더(I0)처럼
+            // 배열이면 버튼을 차례로 넣는다.
+            for (final JObj item in menu.getJSONObjects(side)) {
+              slot.items.addAll(await _j0(item, 'main_$side'));
+            }
           }
         }
       }
@@ -458,8 +457,11 @@ class _MainScreenState extends State<MainScreen>
   int _dpToPx(int dp) => (dp * _dpr).truncate();
 
   /// `H0(footer)`: 메인 푸터.
+  ///
+  /// 원본은 여기서 뒤로가기 주인(`f7676E`)을 팝업 쪽으로 바꿔서, 푸터가 있는 메인에서 첫 뒤로
+  /// 키가 보이는 변화 없이 그 값만 되돌렸다(HANDOFF 5.6). 개선판은 바꾸지 않아 첫 뒤로 키부터
+  /// 종료 안내가 나온다.
   Future<void> _h0(JObj footer) async {
-    _mainOwner = false; // 원본 그대로: 푸터를 만들면 뒤로가기 주인이 팝업 쪽으로 바뀐다.
     try {
       _footerItems = <_MenuButton>[];
       final String bgImage = footer.getString('bgImage');
@@ -467,7 +469,7 @@ class _MainScreenState extends State<MainScreen>
       final String border = footer.getString('border');
       final JArr menu = footer.getJSONArray('menu');
       _footerBox.color = _backgroundColor(bgColor);
-      if (bgImage != 'null') await _g1(bgImage);
+      await _g1(_footerBox, bgImage);
       _applyStroke(_footerBox, border);
       for (int i = 0; i < menu.length; i++) {
         _footerItems!.add(
@@ -487,8 +489,7 @@ class _MainScreenState extends State<MainScreen>
       final String border = footer.getString('border');
       final JArr menu = footer.getJSONArray('menu');
       _popupFooterBox.color = _backgroundColor(bgColor);
-      // 원본 그대로: 팝업 푸터 배경 이미지도 메인 헤더 배경으로 간다.
-      if (bgImage != 'null') await _g1(bgImage);
+      await _g1(_popupFooterBox, bgImage);
       _applyStroke(_popupFooterBox, border);
       for (int i = 0; i < menu.length; i++) {
         _popupFooterItems.add(
@@ -564,40 +565,29 @@ class _MainScreenState extends State<MainScreen>
       if (!json.isNull('action')) {
         json.getJSONArray('action').getJSONObject(0);
         final String command = json.toString();
-        // 원본은 x0을 끝까지 처리한 뒤 대화상자를 닫는다. 그래서 버튼 명령이 새 대화상자를
-        // 띄우면 그 새 대화상자가 닫힌다(그대로 따름).
+        // 원본은 x0을 끝까지 처리한 뒤 대화상자를 닫아서, 버튼 명령이 새 대화상자를 띄우면 그
+        // 새 대화상자가 바로 닫혔다(HANDOFF 5.8). 개선판은 먼저 닫고 명령을 처리한다.
         button.onTap = () {
-          _enqueue(command, fromBridge: false).then((_) {
-            if (loc == 'dialog') _cancelDialog();
-          });
+          if (loc == 'dialog') _cancelDialog();
+          _enqueue(command, fromBridge: false);
         };
       }
     } catch (_) {}
     return button;
   }
 
-  /// `P0(url)`: 아이콘을 내려받아 공용 비트맵 필드에 넣고 그 값을 쓴다.
-  Future<ui.Image?> _p0(String url) async {
-    _storeBitmap(await fetchBitmap(url));
-    return _sharedBitmap;
-  }
+  /// `P0(url)`: 아이콘·배경 그림을 내려받는다. 받지 못했거나 그림이 아니면 null(그림 없음).
+  ///
+  /// 원본은 아이콘·헤더 배경이 함께 쓰는 필드 하나(`f7721e0`)에 넣고 그 값을 써서, 내려받기가
+  /// 실패하면 직전에 받은 다른 그림이 대신 쓰였다(HANDOFF 5.8).
+  Future<ui.Image?> _p0(String url) async => (await fetchBitmap(url)).image;
 
-  /// `g1(url)`: 내려받은 그림을 메인 헤더 배경으로(헤더·푸터·팝업 어디서 불러도 메인 헤더).
-  Future<void> _g1(String url) async {
-    _storeBitmap(await fetchBitmap(url));
-    _headerHasBitmap = true;
-    _headerBitmap = _sharedBitmap;
-  }
-
-  void _storeBitmap(BitmapFetch result) {
-    switch (result) {
-      case BitmapLoaded(:final ui.Image image):
-        _sharedBitmap = image;
-      case BitmapUndecodable():
-        _sharedBitmap = null;
-      case BitmapFailed():
-        break; // 실패하면 이전 값 그대로
-    }
+  /// `g1(url)`: 헤더·푸터 배경 그림을 그 칸([box])에 깐다. `bgImage`가 `"null"`이거나 받지
+  /// 못하면 그림 없이 배경색으로 둔다.
+  ///
+  /// 원본은 메인 푸터·팝업 헤더·팝업 푸터에서 불러도 모두 메인 헤더 배경으로 갔다(HANDOFF 5.8).
+  Future<void> _g1(GradientBox box, String bgImage) async {
+    box.image = bgImage == 'null' ? null : await _p0(bgImage);
   }
 
   /// `B0(url)`: 저장된 `webview`가 `popup`이면 팝업, 아니면 메인 웹뷰에 공통 헤더와 함께 불러온다.
@@ -702,8 +692,7 @@ class _MainScreenState extends State<MainScreen>
         final String border = h.getString('border');
         _popupHeaderBox.color = _backgroundColor(bgColor);
         _i1(align, header, footer, bgColor == 'transparent');
-        // 원본 그대로: 팝업 헤더 배경 이미지가 메인 헤더 배경으로 간다.
-        if (bgImage != 'null') await _g1(bgImage);
+        await _g1(_popupHeaderBox, bgImage);
         _applyStroke(_popupHeaderBox, border);
         if (align == 'full') {
           _subHeadVisible = true;
@@ -856,6 +845,11 @@ class _MainScreenState extends State<MainScreen>
     await runOnUi(() async {
       if (!_popupShown) {
         _bgVisible = false;
+        // `left` 팝업은 등장 애니메이션을 배경에 건다(fillAfter). 붙어 있으면 숨겨도 그려져서
+        // 배경과 팝업이 남았다(HANDOFF 5.12). 개선판은 떼어 낸다. 등장 중이었으면 끝 알림이
+        // "다 나옴"으로 바꾸므로 되돌린다.
+        _bgTrack.clear();
+        _popupShown = false;
       } else {
         switch (_popupAlign) {
           case 'left':
@@ -896,6 +890,7 @@ class _MainScreenState extends State<MainScreen>
           if (_popupShown) {
             _bgVisible = false;
             _bodyTrack.clear();
+            _bgTrack.clear(); // 개선판: 앞선 left 팝업의 배경 애니메이션도 뗀다(A0 참고)
             _popupShown = false;
           } else {
             _popupShown = _prefs.webview != 'main';
@@ -914,6 +909,9 @@ class _MainScreenState extends State<MainScreen>
           }
           _bgVisible = false;
           _bodyTrack.clear();
+          // 개선판: left 팝업이 배경에 건 등장 애니메이션도 떼어, 닫은 뒤 배경이 남지 않게 한다
+          // (HANDOFF 5.12). 이미 끝난 애니메이션이라 끝 알림은 다시 오지 않는다.
+          _bgTrack.clear();
           _popupShown = false;
         };
     }
@@ -1484,15 +1482,11 @@ class _MainScreenState extends State<MainScreen>
   }
 
   Widget _mainHeaderBody() {
-    return Container(
-      decoration: _headerHasBitmap ? null : _headerBox.decoration(),
+    return BoxBackground(
+      box: _headerBox,
       child: Stack(
         alignment: Alignment.center,
         children: <Widget>[
-          if (_headerHasBitmap && _headerBitmap != null)
-            Positioned.fill(
-              child: RawImage(image: _headerBitmap, fit: BoxFit.fill),
-            ),
           if (_center.visible)
             SizedBox(
               height: 50,
@@ -1532,9 +1526,9 @@ class _MainScreenState extends State<MainScreen>
     final List<_MenuButton>? items = _footerItems;
     return BarTextScale(
       maxScaleFactor: BarTextScale.bar,
-      child: Container(
+      child: BoxBackground(
+        box: _footerBox,
         height: 50,
-        decoration: _footerBox.decoration(),
         child: Row(
           children: items == null
               ? const <Widget>[LegacyButton(text: '*')]
@@ -1623,9 +1617,9 @@ class _MainScreenState extends State<MainScreen>
         if (_popupFooterVisible)
           BarTextScale(
             maxScaleFactor: BarTextScale.bar,
-            child: Container(
+            child: BoxBackground(
+              box: _popupFooterBox,
               height: 50,
-              decoration: _popupFooterBox.decoration(),
               child: Row(children: _popupFooterItems.map(_slotButton).toList()),
             ),
           ),
@@ -1676,9 +1670,9 @@ class _MainScreenState extends State<MainScreen>
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {},
-      child: Container(
+      child: BoxBackground(
+        box: _popupHeaderBox,
         height: 58,
-        decoration: _popupHeaderBox.decoration(),
         child: Stack(
           alignment: Alignment.center,
           children: <Widget>[
