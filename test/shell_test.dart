@@ -195,9 +195,23 @@ void main() {
     shell.setFullscreen(AppTab.home, true);
     await tester.pump();
     expect(find.byType(NavigationBar), findsNothing);
+    expect(
+      MediaQuery.sizeOf(tester.element(find.byType(_FakeHome))),
+      const Size(412, 915),
+    );
     shell.setFullscreen(AppTab.home, false);
     await tester.pump();
     expect(find.byType(NavigationBar), findsOneWidget);
+  });
+
+  testWidgets('홈 탭의 화면 크기는 홈 탭 영역(팝업 80% 규칙·대화상자 폭의 기준)', (
+    WidgetTester tester,
+  ) async {
+    await pumpShell(tester);
+    final double bar = tester.getSize(find.byType(NavigationBar)).height;
+    final Size home = MediaQuery.sizeOf(tester.element(find.byType(_FakeHome)));
+    expect(home, Size(412, 915 - bar));
+    expect(tester.getSize(find.byType(_FakeHome)), home);
   });
 
   testWidgets('캠퍼스 설정은 학식·교통이 함께 쓰고 저장된다', (WidgetTester tester) async {

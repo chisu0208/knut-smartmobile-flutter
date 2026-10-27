@@ -171,8 +171,20 @@ class AppShellState extends State<AppShell> implements ShellHost {
     if (!_visited.contains(tab)) return const SizedBox.shrink();
     switch (tab) {
       case AppTab.home:
-        // 홈 탭은 1차의 원본 모양 위젯이라 앱 테마(Material 2)를 쓴다.
-        return Theme(data: legacy, child: widget.home(context, _context(tab)));
+        // 홈 탭은 1차의 원본 모양 위젯이라 앱 테마(Material 2)를 쓴다. 화면 크기는 홈 탭 영역으로
+        // 알려 준다: MainScreen은 이 크기(`Display.getSize`)로 팝업 크기(80% 규칙)와 대화상자 폭을
+        // 정하는데, 탭 막대가 생겨 창 전체보다 작아졌다.
+        return LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) =>
+              MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(size: constraints.biggest),
+                child: Theme(
+                  data: legacy,
+                  child: widget.home(context, _context(tab)),
+                ),
+              ),
+        );
       case AppTab.attend:
         return widget.webTab(
           context,
