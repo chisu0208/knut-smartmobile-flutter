@@ -258,7 +258,7 @@ MainActivity
 
 ## 5. 동작 규칙 (원본 코드 기준)
 
-> 원본(과 이식판)의 규칙이다. 개선판 1차에서 바뀐 규칙은 해당 줄에 **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md))** 표시를 달았다. 바뀐 곳: 5.2 권한·등록 실패, 5.3 시간 제한, 5.4 로딩 표시, 5.7·5.12 애니메이션 시간, 5.8 글자 버튼 칸, 5.9 alert 버튼 색·루팅, 5.10 네트워크 없을 때 팝업, 5.11 글자 크기·확대·원격 디버깅·자식 창 닫기·파일 선택·내려받기, 5.13 첫 실행 뒤로 키(방문 기록), 5.14 흔들기·위치 권한, 5.17 취소 문구, 5.18 루팅.
+> 원본(과 이식판)의 규칙이다. 개선판 1차에서 바뀐 규칙은 해당 줄에 **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md))** 표시를 달았다. 바뀐 곳: 5.2 권한·등록 실패, 5.3 시간 제한, 5.4 로딩 표시, 5.7·5.12 애니메이션 시간, 5.8 글자 버튼 칸, 5.9 alert 버튼 색·루팅, 5.10 네트워크 없을 때 팝업, 5.11 글자 크기·확대·원격 디버깅·자식 창 닫기·파일 선택·내려받기, 5.13 첫 실행 뒤로 키(방문 기록), 5.14 흔들기·위치 권한, 5.16 비콘 권한(리뷰 반영), 5.17 취소 문구·QR 색, 5.18 루팅.
 
 ### 5.1 공통 부모 (`BaseActivity_a.java`)
 
@@ -495,7 +495,7 @@ CoordinatorLayout (바깥 여백 1dp)
   - 팝업: 위 + `intent://` 실행(앱 없으면 그 패키지 마켓 페이지), `play.google.com/store/apps/details?id=` 또는 `market://details?id=` → 마켓 앱
   - 자식·손자: 가로채지 않음
 - 자식 웹뷰는 팝업 웹뷰와 같은 FrameLayout(`webview_frame`) 위에 꽉 차게 얹는다. 자식에서 `https://tis.ut.ac.kr/main.do` 로드가 끝나면 뒤로가기 처리(y0) 실행
-- 자식 `window.close()` → 자식 제거, 그리고 **팝업도 닫음**(A0). 손자 `window.close()` → 손자 제거·파괴 **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md))** 자식만 제거, 팝업은 남김. 내려받기만 하고 빈 자식 창은 바로 닫음
+- 자식 `window.close()` → 자식 제거, 그리고 **팝업도 닫음**(A0). 손자 `window.close()` → 손자 제거·파괴 **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md))** 닫힌 창만 제거·파괴, 팝업은 남김. 페이지를 그리지 않고 내려받기만 한 자식·손자 창은 바로 닫음. 팝업을 바꿀 때 이전 팝업과 그 자식·손자 창도 파괴
 - 다운로드 **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md))** Android 9 이하에서만 내려받을 때 저장 권한 요청: `Content-Disposition`에서 파일 이름을 뽑아(`attachment; filename=` 제거, `=` 뒤 마지막, 따옴표·공백·세미콜론 정리) DownloadManager로 공용 Download 폴더에 저장, 쿠키·UA 헤더 포함, 토스트 `파일이 다운로드됩니다.` 실패 시 저장 권한 요청 + 토스트 `다운로드를 위해\n권한이 필요합니다.`
 - 페이지 시작 → 로딩 표시, 끝 → 숨김 (메인·팝업·자식·손자 모두)
 
@@ -538,6 +538,7 @@ CoordinatorLayout (바깥 여백 1dp)
 ### 5.16 비콘 (`function: beacone`)
 
 - iBeacon 레이아웃 `m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24`(AltBeacon)
+- **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md) 3절)** 검색 전에 근처 기기(`BLUETOOTH_SCAN`, Android 12 이상)·정밀·대략 위치 권한 요청. 원본은 대략 위치만 있어 Android 10 이상에서 찾지 못했다
 - `config.uuid` 배열과 `config.url`(+`?uuid=`/`&uuid=`) 기억 → 모든 비콘 검색 시작 → **5초 뒤**: 찾은 비콘 중 id1이 배열의 uuid와 같은 것(뒤에 나온 것이 이김)의 id1·id2·id3으로
   `url + id1 + "&major=" + id2 + "&major=" + id3`로 POST(**major가 두 번**, 원본 그대로. 못 찾으면 `null` 문자열) → 검색 중지
 
@@ -545,7 +546,7 @@ CoordinatorLayout (바깥 여백 1dp)
 
 - `config.url`에 `?value=`/`&value=`를 붙여 기억하고 스캔 화면을 연다(방향 고정, 삑 소리 끔)
 - 화면(`activity_custom_scanner.xml`): 카메라 전체, 가운데 260dp 테두리 이미지(`qr_area.png`), 그 위 10dp에 흰 20dp 글자 `사각 테두리 안에 QR코드를\n 인식해주세요.`(그중 "QR코드"만 #03DAC5), 아래 30dp에 닫기 이미지 버튼(`btn_qr_close.png`)
-- 결과: 내용이 있으면 기억한 주소 + 내용으로 POST, 취소면 토스트 `Cancelled` **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md))** 한글 토스트, 열기 전에 카메라 권한 요청, 닫기 버튼은 시스템 바 위
+- 결과: 내용이 있으면 기억한 주소 + 내용으로 POST, 취소면 토스트 `Cancelled` **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md))** 한글 토스트, 열기 전에 카메라 권한 요청, 닫기 버튼은 시스템 바 위, 테두리·선은 흰색이고 닫기 버튼은 학교색 원(코드로 그림)
 
 ### 5.18 루팅 확인
 
@@ -595,16 +596,16 @@ CoordinatorLayout (바깥 여백 1dp)
 | `lib/src/intro_screen.dart` | `IntroActivity` | 시작 이미지, 기기 등록(5.2). 개선판: 권한을 묻지 않고, 등록 10초 제한과 연결 안내·다시 시도 |
 | `lib/src/main_screen.dart` | `MainActivity` | 명령 처리기, 메인·팝업 구성, 메뉴·버튼, 대화상자, 로딩, 뒤로가기, NFC·비콘·QR·GPS 연결. 메서드 옆 주석이 원본 이름(`x0`, `E0`, `i1`, …). 개선판: 흔들기(센서) 없앰, 연결 안내, 기능별 권한 요청, 동영상 전체 화면 |
 | `lib/src/web_entry.dart` | `X0()`/`Z0()`/`onCreateWindow` | 웹뷰 하나(메인·팝업·자식·손자) 만들기. 개선판: 불러오기 상태(`page_load.dart`)와 Kotlin 웹뷰 이벤트 연결, 다시 시도, 방문 기록 지우기 |
-| `lib/src/page_load.dart` (개선판) | — | 웹뷰 하나의 본문 불러오기 상태: 로딩 표시, 10초 지연·연결 실패 안내, 다시 시도 방법 |
+| `lib/src/page_load.dart` (개선판) | — | 웹뷰 하나의 본문 불러오기 상태: 로딩 표시, 10초 지연·연결 실패 안내, 다시 시도 방법, 방문 기록 지우기 시점, 내려받기만 한 창 닫기(`closeWindowAfterDownload`) |
 | `lib/src/connection_notice.dart` (개선판) | — | 연결 실패·지연 안내 화면(시작 화면, 메인·팝업 웹뷰) |
 | `lib/src/app_colors.dart` (개선판) | `colors.xml` | 학교 대표색 `schoolColor`(Android `res/values/colors.xml`의 `school`과 같은 값) |
 | `lib/src/popup_animation.dart` | `res/anim`, 애니메이션 리스너 | 옛 Android 애니메이션 규칙(5.12) |
-| `lib/src/legacy_widgets.dart` | 레이아웃 XML, `RoundedWebView` | 버튼, 로딩 표시, 웹뷰 모서리, alert·dialog·nfc 대화상자, 버튼 정사각형 칸(`SquareSlot`) |
+| `lib/src/legacy_widgets.dart` | 레이아웃 XML, `RoundedWebView` | 버튼, 로딩 표시, 웹뷰 모서리, alert·dialog·nfc 대화상자, 버튼 정사각형 칸(`SquareSlot`), 헤더·푸터 글자 배율 상한(`BarTextScale`) |
 | `lib/src/legacy_json.dart` | `org.json` | 같은 예외 규칙, Android `toString()` 직렬화 |
 | `lib/src/android_color.dart` | `Color.parseColor` | |
 | `lib/src/allytte_http.dart` | `i2.a`, 내려받기 스레드 | POST 도우미(5.3), 아이콘·시작 이미지 내려받기 |
 | `lib/src/device_prefs.dart` | SharedPreferences `"device"` | |
-| `lib/src/qr_scan_screen.dart` | `ZxingActivity` | 같은 배치, 인식은 mobile_scanner(ML Kit) |
+| `lib/src/qr_scan_screen.dart` | `ZxingActivity` | 같은 배치, 인식은 mobile_scanner(ML Kit). 개선판: 테두리·닫기 버튼을 그림 대신 코드로 그림 |
 | `lib/src/native_bridge.dart` | — | Kotlin 채널. 개선판: 기능별 권한 요청(`requestFeaturePermission`) |
 | `android/.../MainActivity.kt` | 두 액티비티의 Android 부분 | 권한, 시스템 대화상자(권한 설정 안내·루팅 안내), 토스트, 인텐트, NFC foreground dispatch·태그 읽기, GPS, AltBeacon, 파일 선택 결과, 글자 크기 설정 변경 |
 | `android/.../WebViewBridge.kt` | WebView 설정·클라이언트 | 원본 설정값, `allytteAndroid` 객체, 링크 처리(sms/tel/mailto/intent/마켓), 다운로드, `window.open`·`window.close`, JS 알림창, 파일 선택. 개선판: 글자 크기·확대, 웹뷰 이벤트(`webEvent`), 방문 기록 지우기 |
