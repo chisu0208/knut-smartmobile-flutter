@@ -1,7 +1,9 @@
-import 'dart:math' as math;
 import 'dart:ui';
 
-/// `res/anim/translate_*.xml` 여덟 개(500ms, accelerate_decelerate, fillAfter).
+/// `res/anim/translate_*.xml` 여덟 개(fillAfter).
+///
+/// 원본은 500ms, accelerate_decelerate(천천히 출발)였다. 개선판은 [AnimTrack.duration]
+/// 250ms에 decelerate(빠르게 출발해 감속)로 바꿨다(통합본 6-2). 움직이는 거리와 방향은 원본 그대로다.
 enum LegacyAnim {
   inBottom, // fromY 100%p → 0
   inLeft, // fromX -100%p → 0
@@ -23,7 +25,11 @@ enum LegacyAnim {
 class AnimTrack {
   AnimTrack(this._listenerFor);
 
-  static const Duration duration = Duration(milliseconds: 500);
+  /// 원본 500ms → 개선판 250ms(통합본 6-2).
+  static const Duration duration = Duration(milliseconds: 250);
+
+  /// DecelerateInterpolator(factor 1): 빠르게 출발해 감속한다. 원본은 AccelerateDecelerate.
+  static double curve(double t) => 1 - (1 - t) * (1 - t);
 
   final void Function() Function(LegacyAnim anim) _listenerFor;
 
@@ -75,8 +81,7 @@ class AnimTrack {
   Offset offset(Size parent, Size self) {
     final LegacyAnim? anim = _anim;
     if (anim == null) return Offset.zero;
-    // AccelerateDecelerateInterpolator
-    final double f = math.cos((_t + 1) * math.pi) / 2 + 0.5;
+    final double f = curve(_t);
     double lerp(double a, double b) => a + (b - a) * f;
     return switch (anim) {
       LegacyAnim.inBottom => Offset(0, lerp(parent.height, 0)),

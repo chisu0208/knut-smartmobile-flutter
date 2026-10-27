@@ -1,14 +1,14 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
-import 'package:sensors_plus/sensors_plus.dart';
 
 import 'allytte_http.dart';
 import 'android_color.dart';
+import 'app_colors.dart';
+import 'connection_notice.dart';
 import 'device_prefs.dart';
 import 'intro_screen.dart';
 import 'legacy_json.dart';
@@ -62,7 +62,8 @@ class _AppDialog {
 }
 
 class _MainScreenState extends State<MainScreen>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+    with SingleTickerProviderStateMixin
+    implements FullscreenHost {
   late DevicePrefs _prefs;
   late DeviceInfo _info;
   String _deviceToken = ''; // f7834v
@@ -88,7 +89,6 @@ class _MainScreenState extends State<MainScreen>
   bool _mainOwner = true; // f7676E
   bool _childOpen = false; // f7717a0
   bool _grandchildOpen = false; // f7718b0
-  bool _gestureOk = false; // f7724h0
   String? _nfcUrl; // f7722f0
   String? _resultUrl; // f7723g0 (QR·비콘 결과 전송 주소)
   int _backPressedAt = 0; // f7709U0
@@ -134,23 +134,19 @@ class _MainScreenState extends State<MainScreen>
   ); // f7681G0
   List<_MenuButton> _popupFooterItems = <_MenuButton>[];
 
-  // ---- 대화상자·로딩 ----
-  bool _loading = false; // f7833u
+  // ---- 대화상자 ----
   _AppDialog? _dialog; // f7832t
+
+  // ---- 동영상 전체 화면(통합본 6-11) ----
+  Widget? _customView;
+  VoidCallback? _exitCustomView;
 
   // ---- 명령 처리 ----
   Future<void> _queue = Future<void>.value();
 
-  // ---- 센서 ----
-  StreamSubscription<AccelerometerEvent>? _accelerometer;
-  int _lastShakeAt = 0; // f7737u0
-  bool _resumed = true;
-  bool _covered = false;
-
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     NativeBridge.on(
       'jsCommand',
       (MethodCall call) async =>
@@ -163,9 +159,13 @@ class _MainScreenState extends State<MainScreen>
     });
     NativeBridge.on(
       'closeWindow',
-      (MethodCall call) async => _closeWindow(call.arguments as String),
+      (MethodCall call) async => _closeWindow(call.arguments as int),
     );
-    NativeBridge.on('hideLoading', (MethodCall call) async => _hideLoading());
+    NativeBridge.on(
+      'webEvent',
+      (MethodCall call) async =>
+          WebEntry.handleNativeEvent(call.arguments as Map<Object?, Object?>),
+    );
     NativeBridge.on(
       'nfcTag',
       (MethodCall call) async => _onNfcTag(call.arguments as String),
@@ -202,8 +202,8 @@ class _MainScreenState extends State<MainScreen>
     _prefs.webview = 'main';
     _main = await WebEntry.create(
       'main',
-      onPageStarted: (_) => _showLoading(),
-      onPageFinished: (_) => _hideLoading(),
+      onChanged: _refresh,
+      fullscreen: this,
     );
     if (!mounted) return;
     setState(() => _ready = true);
@@ -211,7 +211,6 @@ class _MainScreenState extends State<MainScreen>
       NativeBridge.toast('NFC를 지원하지 않는 단말기입니다.');
     }
     await NativeBridge.setMainActive(true);
-    _updateSensor();
     // Y0(screen_info)
     _loadTokens();
     await _enqueue(widget.screenInfo, fromBridge: false);
@@ -220,55 +219,18 @@ class _MainScreenState extends State<MainScreen>
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     for (final String m in <String>[
       'jsCommand',
       'createWindow',
       'closeWindow',
-      'hideLoading',
+      'webEvent',
       'nfcTag',
       'relaunchIntro',
     ]) {
       NativeBridge.off(m);
     }
     _ticker.dispose();
-    _accelerometer?.cancel();
     super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    _resumed = state == AppLifecycleState.resumed;
-    _updateSensor();
-  }
-
-  /// onResume/onPause의 센서 등록·해제. 다른 화면(QR, 인트로)이 위에 있을 때도 해제된다.
-  void _updateSensor() {
-    final bool active = _ready && _resumed && !_covered;
-    if (active && _accelerometer == null) {
-      _accelerometer = accelerometerEventStream(
-        samplingPeriod: SensorInterval.normalInterval,
-      ).listen(_onAccelerometer);
-    } else if (!active && _accelerometer != null) {
-      _accelerometer!.cancel();
-      _accelerometer = null;
-    }
-  }
-
-  /// `onSensorChanged`: 2.7g를 넘고 직전 감지에서 500ms 지났으면 흔들기 1회.
-  void _onAccelerometer(AccelerometerEvent e) {
-    final double x = e.x / 9.80665, y = e.y / 9.80665, z = e.z / 9.80665;
-    if (math.sqrt(x * x + y * y + z * z) > 2.7) {
-      final int now = DateTime.now().millisecondsSinceEpoch;
-      if (_lastShakeAt + 500 > now) return;
-      _lastShakeAt = now;
-      // S0()
-      if (_gestureOk) {
-        _post(
-          'https://mobile.ut.ac.kr//service/api/device/gesture/shake?value=',
-        );
-      }
-    }
   }
 
   /// `P()` + `Y0()`의 토큰 준비.
@@ -428,7 +390,7 @@ class _MainScreenState extends State<MainScreen>
       config.getString('show');
       config.getString('align');
       final String url = config.getString('url');
-      _readGesture(config);
+      // 흔들기 설정(config.setting.gesture)은 흔들기를 없애서 읽지 않는다(통합본 6-5~6-7).
       if (config.isNull('header')) {
         _headerVisible = false;
       } else {
@@ -464,18 +426,9 @@ class _MainScreenState extends State<MainScreen>
         _footerVisible = true;
         await _h0(config.getJSONObject('footer'));
       }
-      _b0(url);
+      _b0(url, clearHistory: true);
     } catch (_) {}
     _refresh();
-  }
-
-  void _readGesture(JObj config) {
-    if (config.isNull('setting') ||
-        config.getJSONObject('setting').isNull('gesture')) {
-      _gestureOk = true;
-    } else {
-      _gestureOk = config.getJSONObject('setting').getBoolean('gesture');
-    }
   }
 
   Color _backgroundColor(String bgColor) {
@@ -640,15 +593,22 @@ class _MainScreenState extends State<MainScreen>
   }
 
   /// `B0(url)`: 저장된 `webview`가 `popup`이면 팝업, 아니면 메인 웹뷰에 공통 헤더와 함께 불러온다.
-  void _b0(String url) {
+  ///
+  /// [clearHistory]면 그 페이지가 끝난 뒤 방문 기록을 지운다(`webview`/`main` 명령). 원본은
+  /// 기록을 남겨서, 첫 실행에 권한 안내 페이지를 거쳐 메인으로 간 뒤 뒤로 키를 누르면 이전 서버
+  /// 페이지(`page/authority#1`)로 돌아가 앱 헤더 없이 다시 불러왔고, 서버가 HTTP 404를 보였다.
+  void _b0(String url, {bool clearHistory = false}) {
     final WebEntry? target = _prefs.webview == 'popup' ? _popup : _main;
-    target?.loadUrl(url, _extraHeaders);
+    target?.loadUrl(url, _extraHeaders, clearHistoryWhenDone: clearHistory);
   }
 
-  /// `c1(url)`: 팝업에 불러오기. 네트워크가 없으면 알림만.
+  /// `c1(url)`: 팝업에 불러오기. 네트워크가 없으면 불러오지 않는다.
+  ///
+  /// 원본은 이때 `네트워크가 연결되어 있지 않습니다.` 알림만 띄워 팝업이 빈 채로 남았다.
+  /// 개선판은 팝업 안에 연결 안내와 다시 시도 버튼을 보인다(통합본 1-9).
   Future<void> _c1(String url) async {
     if (!await NativeBridge.isNetworkConnected()) {
-      await _q0('네트워크가 연결되어 있지 않습니다.');
+      _popup?.showOffline(url, _extraHeaders);
       return;
     }
     _popup?.loadUrl(url, _extraHeaders);
@@ -673,7 +633,6 @@ class _MainScreenState extends State<MainScreen>
       final String footer = !config.isNull('footer')
           ? config.getString('footer')
           : 'null';
-      _readGesture(config);
       _popupAlign = align;
       final int w80 = (_screenWidthPx * 0.8).truncate();
       final int h80 = (_screenHeightPx * 0.8).truncate();
@@ -782,14 +741,24 @@ class _MainScreenState extends State<MainScreen>
     _refresh();
   }
 
-  /// `Z0()`: 팝업 웹뷰를 새로 만들어 바꾼다. 같은 틀에 있는 자식·손자 창은 그대로 둔다.
+  /// `Z0()`: 팝업 웹뷰를 새로 만들어 바꾼다.
+  ///
+  /// 원본은 이전 팝업 웹뷰를 틀에서 빼기만 하고, 그 팝업에서 열린 자식·손자 창은 틀에 그대로
+  /// 두었다(새 팝업 아래에 가려진 채 뒤로 키를 먼저 받았다). 개선판은 이전 팝업과 그 창들을 틀에서
+  /// 빼고 해제한다(통합본 9-5).
   Future<void> _z0() async {
+    for (final WebEntry entry in _frame.toList()) {
+      if (entry.kind != 'popup') _removeWindow(entry);
+    }
     final WebEntry? old = _popup;
-    if (old != null) _frame.remove(old);
+    if (old != null) {
+      _frame.remove(old);
+      _destroyAfterFrame(old);
+    }
     final WebEntry entry = await WebEntry.create(
       'popup',
-      onPageStarted: (_) => _showLoading(),
-      onPageFinished: (_) => _hideLoading(),
+      onChanged: _refresh,
+      fullscreen: this,
     );
     _popup = entry;
     _frame.add(entry);
@@ -960,14 +929,21 @@ class _MainScreenState extends State<MainScreen>
   // 대화상자와 로딩
   // ======================================================================
 
-  /// `b0()`
-  void _showLoading() {
-    if (!_loading && mounted) setState(() => _loading = true);
+  /// 로딩 표시(원본 `b0()`/`S()`, Dialog `f7833u`): 보이는 웹뷰 가운데 본문을 불러오는 중이고
+  /// 아직 새 화면이 그려지지 않은 것이 있으면 켠다. 연결 안내가 떠 있으면 그 안내가 대신한다.
+  bool get _loading {
+    bool loading(WebEntry? e) => e != null && e.busy && e.problem == null;
+    return loading(_main) || (_bgDrawn && _frame.any(loading));
   }
 
-  /// `S()`
-  void _hideLoading() {
-    if (_loading && mounted) setState(() => _loading = false);
+  /// 팝업 연결 안내의 `닫기`: 뒤로 키로 팝업을 닫을 때와 같다.
+  void _closePopupFromNotice() {
+    _queue = _queue
+        .then((_) async {
+          await _a0((Future<void> Function() op) => op());
+          _mainOwner = true;
+        })
+        .catchError((Object _) {});
   }
 
   void _cancelDialog() {
@@ -985,7 +961,7 @@ class _MainScreenState extends State<MainScreen>
         () => MessagePopup(
           message: message,
           buttonText: '확인',
-          buttonColor: const Color(0xFF1B9CE8),
+          buttonColor: schoolColor, // 원본 round_button #1B9CE8(통합본 5-10)
           onPressed: _cancelDialog,
         ),
       );
@@ -1036,23 +1012,43 @@ class _MainScreenState extends State<MainScreen>
   // function 명령
   // ======================================================================
 
-  /// `f1()`: QR 화면.
+  /// `f1()`: QR 화면. 개선판은 이때 카메라 권한만 요청한다(통합본 1-1).
   void _f1(JObj action) {
     final String url = action.getJSONObject('config').getString('url');
     _resultUrl = url.contains('?') ? '$url&value=' : '$url?value=';
-    _openCovering<String>(const QrScanScreen()).then((String? result) {
-      if (result == null) {
-        NativeBridge.toast('Cancelled', long: true);
-      } else {
-        _post('$_resultUrl$result');
-      }
-    });
+    _openQr();
   }
 
-  /// `W0()`: 위치 전송.
+  Future<void> _openQr() async {
+    final bool granted = await NativeBridge.requestFeaturePermission(
+      const <String>[NativeBridge.camera],
+      deniedMessage: '카메라 권한이 없어 QR 코드를 읽을 수 없습니다.',
+      settingsMessage:
+          'QR 코드를 읽으려면 카메라 권한이 필요합니다.\n'
+          '[설정 열기] → 권한 → 카메라에서 허용해 주세요.',
+    );
+    if (!granted || !mounted) return;
+    final String? result = await _openCovering<String>(const QrScanScreen());
+    if (result == null) {
+      // 원본은 영어 `Cancelled`였다(통합본 7-1).
+      NativeBridge.toast('QR 코드 읽기를 취소했습니다.');
+    } else {
+      _post('$_resultUrl$result');
+    }
+  }
+
+  /// `W0()`: 위치 전송. 개선판은 이때 위치 권한만 요청한다(통합본 1-1). 거부하면 원본처럼
+  /// 위치를 0으로 보낸다.
   Future<void> _w0(JObj action) async {
     try {
       final String url = action.getJSONObject('config').getString('url');
+      await NativeBridge.requestFeaturePermission(
+        const <String>[NativeBridge.fineLocation, NativeBridge.coarseLocation],
+        deniedMessage: '위치 권한이 없어 현재 위치를 보낼 수 없습니다.',
+        settingsMessage:
+            '현재 위치를 보내려면 위치 권한이 필요합니다.\n'
+            '[설정 열기] → 권한 → 위치에서 허용해 주세요.',
+      );
       final String? full = await NativeBridge.gpsUrl(url);
       if (full != null) _post(full);
     } catch (_) {}
@@ -1095,6 +1091,24 @@ class _MainScreenState extends State<MainScreen>
       _beaconUuids = config.getJSONArray('uuid');
       _resultUrl = url.contains('?') ? '$url&uuid=' : '$url?uuid=';
     } catch (_) {}
+    _startBeacon();
+  }
+
+  /// 원본은 첫 실행에 받아 둔 대략 위치 권한으로 비콘을 찾았다. 개선판은 시작할 때 권한을 묻지
+  /// 않으므로 비콘을 찾을 때 권한을 요청한다. 동작(거부해도 검색 후 전송)은 원본 그대로다.
+  ///
+  /// 원본은 대략 위치만 받아서 Android 10 이상(정밀 위치가 있어야 BLE 검색 결과가 옴)과 Android
+  /// 12 이상(근처 기기 `BLUETOOTH_SCAN`이 있어야 검색됨)에서 비콘을 찾지 못했다. 개선판은 둘 다
+  /// 요청한다. 정밀 위치는 Android 12 이상에서 대략 위치와 함께 요청해야 해서 둘을 같이 묻는다.
+  Future<void> _startBeacon() async {
+    final List<String> permissions = <String>[
+      if (_info.sdkInt >= 31) NativeBridge.bluetoothScan,
+      NativeBridge.fineLocation,
+      NativeBridge.coarseLocation,
+    ];
+    if (!await NativeBridge.checkPermissions(permissions)) {
+      await NativeBridge.requestPermissions(permissions);
+    }
     NativeBridge.beaconStart();
     Timer(const Duration(seconds: 5), _z0Beacon);
   }
@@ -1184,14 +1198,17 @@ class _MainScreenState extends State<MainScreen>
     }
     final WebEntry entry = await WebEntry.create(
       isChild ? 'child' : 'grandchild',
-      onPageStarted: (_) => _showLoading(),
+      onChanged: _refresh,
+      fullscreen: this,
       onPageFinished: (String url) {
         // 자식 창에서 통합정보시스템 첫 화면이 끝나면 뒤로가기(원본 그대로).
         if (isChild && url == 'https://tis.ut.ac.kr/main.do') {
           _queue = _queue.then((_) => _y0()).catchError((Object _) {});
         }
-        _hideLoading();
       },
+      // 첨부파일처럼 내려받기만 하고 그린 페이지가 없는 창은 바로 닫는다. 원본은 빈 창이 남아
+      // 팝업이 하얗게 보였고, 뒤로 키 한 번에 공지 팝업까지 닫혔다.
+      onDownloadOnly: _removeWindow,
     );
     if (isChild) {
       _child = entry;
@@ -1203,21 +1220,42 @@ class _MainScreenState extends State<MainScreen>
     await NativeBridge.attachWindow(token, entry.id);
   }
 
-  Future<void> _closeWindow(String kind) async {
-    if (kind == 'child') {
-      _childOpen = false;
-      final WebEntry? child = _child;
-      if (child != null) _frame.remove(child);
-      _refresh();
-      await _a0((Future<void> Function() op) => op());
-    } else {
-      final WebEntry? grandchild = _grandchild;
-      if (grandchild != null) {
-        _frame.remove(grandchild);
-        _refresh();
-        NativeBridge.destroyWebView(grandchild.id);
-      }
+  /// 자식·손자 창의 `window.close()`(Kotlin `onCloseWindow`, 닫힌 창의 웹뷰 id).
+  ///
+  /// 원본은 자식 창이 닫히면 팝업도 닫았다(HANDOFF 5.11). 그래서 ECAMPUS처럼 페이지가 자식 창
+  /// (`panopto_login_popup`)을 열었다가 스스로 닫으면 팝업 전체가 열리자마자 닫혔다. 개선판은
+  /// 닫힌 창만 지우고 팝업은 남긴다.
+  Future<void> _closeWindow(int id) async {
+    for (final WebEntry entry in _frame.toList()) {
+      if (entry.kind != 'popup' && entry.id == id) _removeWindow(entry);
     }
+  }
+
+  /// 자식·손자 창 하나를 틀에서 빼고 웹뷰를 해제한다.
+  ///
+  /// 원본은 손자 창만 해제하고 자식 창은 틀에서 빼기만 했다. 개선판은 자식 창도 해제한다
+  /// (통합본 9-5: 해제되지 않은 웹뷰가 ECAMPUS·첨부 내려받기마다 쌓였다). 닫힌 창은 뒤로 키도
+  /// 받지 않는다.
+  void _removeWindow(WebEntry entry) {
+    if (!_frame.remove(entry)) return; // 이미 닫혔다
+    if (identical(entry, _child)) {
+      _child = null;
+      _childOpen = false;
+    }
+    if (identical(entry, _grandchild)) {
+      _grandchild = null;
+      _grandchildOpen = false;
+    }
+    _refresh();
+    _destroyAfterFrame(entry);
+  }
+
+  /// 틀에서 뺀 웹뷰를 다음 화면이 그려진 뒤(화면에서 떨어진 뒤) 해제한다. 화면에 붙은 채로
+  /// 해제하면 WebView가 경고를 남긴다.
+  void _destroyAfterFrame(WebEntry entry) {
+    WidgetsBinding.instance.endOfFrame.then(
+      (_) => NativeBridge.destroyWebView(entry.id),
+    );
   }
 
   // ======================================================================
@@ -1254,7 +1292,7 @@ class _MainScreenState extends State<MainScreen>
         await NativeBridge.exitProcess();
       } else {
         _backPressedAt = DateTime.now().millisecondsSinceEpoch;
-        NativeBridge.toast("'뒤로' 버튼을 한번 더 누르시면 종료됩니다.");
+        NativeBridge.toast("'뒤로' 버튼을 한 번 더 누르면 종료됩니다."); // 통합본 7-2
       }
       return;
     }
@@ -1267,9 +1305,48 @@ class _MainScreenState extends State<MainScreen>
     }
   }
 
+  // ======================================================================
+  // 동영상 전체 화면(통합본 6-11)
+  // ======================================================================
+
+  /// 원본은 `onShowCustomView`를 처리하지 않고 화면도 세로 고정이라 동영상 전체 화면이 되지
+  /// 않았다. 개선판은 웹뷰가 넘긴 전체 화면 뷰를 화면 전체에 띄우고, 그동안만 가로 회전과 시스템
+  /// 바 숨기기를 허용한다.
+  @override
+  void show(Widget view, VoidCallback exit) {
+    _customView = view;
+    _exitCustomView = exit;
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    SystemChrome.setPreferredOrientations(const <DeviceOrientation>[
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    _refresh();
+  }
+
+  @override
+  void hide() {
+    if (_customView == null) return;
+    _customView = null;
+    _exitCustomView = null;
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setPreferredOrientations(const <DeviceOrientation>[
+      DeviceOrientation.portraitUp,
+    ]);
+    _refresh();
+  }
+
   void _onBackPressed() {
-    // 로딩 표시와 대화상자는 취소할 수 없는 창이라 뒤로 키를 먹는다.
-    if (_loading || _dialog != null) return;
+    // 동영상 전체 화면이면 뒤로 키는 전체 화면만 끝낸다.
+    final VoidCallback? exitCustomView = _exitCustomView;
+    if (exitCustomView != null) {
+      exitCustomView();
+      return;
+    }
+    // 대화상자는 취소할 수 없는 창이라 뒤로 키를 먹는다. 원본은 로딩 표시도 뒤로 키를 먹었지만
+    // 개선판의 로딩 표시는 입력을 막지 않는다(통합본 3-31).
+    if (_dialog != null) return;
     _queue = _queue.then((_) => _y0()).catchError((Object _) {});
   }
 
@@ -1277,10 +1354,8 @@ class _MainScreenState extends State<MainScreen>
   // 다른 화면(QR, 다시 뜨는 인트로)
   // ======================================================================
 
-  /// 다른 화면이 위에 있는 동안 원본 MainActivity는 onPause 상태(센서·NFC 해제).
+  /// 다른 화면이 위에 있는 동안 원본 MainActivity는 onPause 상태(NFC 해제).
   Future<T?> _openCovering<T>(Widget screen) async {
-    _covered = true;
-    _updateSensor();
     final NavigatorState navigator = Navigator.of(context);
     await NativeBridge.setMainActive(false);
     final T? result = await navigator.push<T>(
@@ -1290,8 +1365,6 @@ class _MainScreenState extends State<MainScreen>
         reverseTransitionDuration: Duration.zero,
       ),
     );
-    _covered = false;
-    _updateSensor();
     await NativeBridge.setMainActive(true);
     return result;
   }
@@ -1358,6 +1431,10 @@ class _MainScreenState extends State<MainScreen>
               if (_loading) const Positioned.fill(child: _LoadingLayer()),
               if (_dialog != null)
                 Positioned.fill(child: _dialogLayer(_dialog!)),
+              if (_customView != null)
+                Positioned.fill(
+                  child: ColoredBox(color: _black, child: _customView),
+                ),
             ],
           ),
         ),
@@ -1375,7 +1452,7 @@ class _MainScreenState extends State<MainScreen>
         Expanded(
           child: ColoredBox(
             color: _white,
-            child: _ready && _main != null ? _main!.view : null,
+            child: _ready && _main != null ? _withNotice(_main!) : null,
           ),
         ),
         if (_footerVisible) ...<Widget>[
@@ -1390,7 +1467,15 @@ class _MainScreenState extends State<MainScreen>
     );
   }
 
+  /// 메인 헤더. 가운데 칸이 50dp로 정해져 있어 글자 배율에 상한을 둔다([BarTextScale]).
   Widget _mainHeader() {
+    return BarTextScale(
+      maxScaleFactor: BarTextScale.bar,
+      child: _mainHeaderBody(),
+    );
+  }
+
+  Widget _mainHeaderBody() {
     return Container(
       decoration: _headerHasBitmap ? null : _headerBox.decoration(),
       child: Stack(
@@ -1437,13 +1522,16 @@ class _MainScreenState extends State<MainScreen>
   /// `main_footer`: 처음에는 레이아웃의 "*" 버튼(AppCompat 기본 버튼).
   Widget _mainFooter() {
     final List<_MenuButton>? items = _footerItems;
-    return Container(
-      height: 50,
-      decoration: _footerBox.decoration(),
-      child: Row(
-        children: items == null
-            ? const <Widget>[LegacyButton(text: '*')]
-            : items.map(_slotButton).toList(),
+    return BarTextScale(
+      maxScaleFactor: BarTextScale.bar,
+      child: Container(
+        height: 50,
+        decoration: _footerBox.decoration(),
+        child: Row(
+          children: items == null
+              ? const <Widget>[LegacyButton(text: '*')]
+              : items.map(_slotButton).toList(),
+        ),
       ),
     );
   }
@@ -1459,9 +1547,10 @@ class _MainScreenState extends State<MainScreen>
     );
     final int? box = b.boxPx;
     if (box == null) return button;
-    return SizedBox.square(
+    return SquareSlot(
       dimension: box / _dpr,
-      child: Align(alignment: Alignment.topLeft, child: button),
+      fitContent: b.text != null && b.background is! ImageButtonBackground,
+      child: button,
     );
   }
 
@@ -1524,10 +1613,13 @@ class _MainScreenState extends State<MainScreen>
           ),
         ),
         if (_popupFooterVisible)
-          Container(
-            height: 50,
-            decoration: _popupFooterBox.decoration(),
-            child: Row(children: _popupFooterItems.map(_slotButton).toList()),
+          BarTextScale(
+            maxScaleFactor: BarTextScale.bar,
+            child: Container(
+              height: 50,
+              decoration: _popupFooterBox.decoration(),
+              child: Row(children: _popupFooterItems.map(_slotButton).toList()),
+            ),
           ),
       ],
     );
@@ -1543,12 +1635,36 @@ class _MainScreenState extends State<MainScreen>
         bottomLeft: entry.bottomLeft,
         devicePixelRatio: _dpr,
       ),
-      child: entry.view,
+      child: _withNotice(entry, onClose: _closePopupFromNotice),
     );
   }
 
-  /// `popup_header`: 터치는 먹기만 한다.
+  /// 웹뷰 위에 연결 안내(통합본 1-9, 6-10). 웹뷰는 계속 붙여 둔다.
+  Widget _withNotice(WebEntry entry, {VoidCallback? onClose}) {
+    final ConnectionProblem? problem = entry.problem;
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        entry.view,
+        if (problem != null)
+          ConnectionNotice(
+            problem: problem,
+            onRetry: entry.retry,
+            onClose: onClose,
+          ),
+      ],
+    );
+  }
+
+  /// `popup_header`: 터치는 먹기만 한다. 제목 칸이 40dp라 글자 배율에 상한을 둔다([BarTextScale]).
   Widget _popupHeader() {
+    return BarTextScale(
+      maxScaleFactor: BarTextScale.popupHeader,
+      child: _popupHeaderBody(),
+    );
+  }
+
+  Widget _popupHeaderBody() {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {},
@@ -1600,7 +1716,8 @@ class _MainScreenState extends State<MainScreen>
     );
   }
 
-  /// 대화상자 창: 화면폭 − 70dp, 뒤를 0.5 어둡게, 바깥 터치 무시.
+  /// 대화상자 창: 화면폭 − 70dp, 뒤를 0.5 어둡게, 바깥 터치 무시. 글자 크기 설정을 키우면
+  /// 길어질 수 있어 화면보다 높으면 스크롤한다.
   Widget _dialogLayer(_AppDialog dialog) {
     final double width = ((_screenWidthPx - (_dpr * 70).truncate()) / _dpr)
         .clamp(0, double.infinity);
@@ -1608,20 +1725,23 @@ class _MainScreenState extends State<MainScreen>
       color: const Color(0x80000000),
       child: SafeArea(
         child: Center(
-          child: SizedBox(width: width, child: dialog.build()),
+          child: SingleChildScrollView(
+            child: SizedBox(width: width, child: dialog.build()),
+          ),
         ),
       ),
     );
   }
 }
 
-/// 로딩 표시 창: 화면 전체 터치를 막고 가운데에 회전 이미지.
+/// 로딩 표시: 가운데에 회전 이미지. 원본은 화면 전체를 덮는 취소 불가 창이라 로딩 중에는
+/// 아무것도 누를 수 없었다. 개선판은 터치를 그대로 아래로 넘긴다(통합본 3-31).
 class _LoadingLayer extends StatelessWidget {
   const _LoadingLayer();
 
   @override
   Widget build(BuildContext context) {
-    return const AbsorbPointer(
+    return const IgnorePointer(
       child: SafeArea(child: Center(child: LoadingSpinner())),
     );
   }

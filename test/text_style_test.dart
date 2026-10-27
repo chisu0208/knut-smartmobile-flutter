@@ -105,4 +105,39 @@ void main() {
       expect(ok.color, Colors.white);
     });
   });
+
+  group('글자 크기 설정(통합본 5-8)', () {
+    testWidgets('alert·dialog 글자는 휴대폰 글자 크기 설정을 따른다', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (BuildContext context, Widget? child) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: const TextScaler.linear(1.5)),
+            child: SmartMobileApp.wrapScreens(context, child),
+          ),
+          home: SingleChildScrollView(
+            child: Column(
+              children: <Widget>[
+                MessagePopup(
+                  message: 'alert 메시지',
+                  buttonText: '확인',
+                  buttonColor: const Color(0xFF1B9CE8),
+                  onPressed: () {},
+                ),
+                const ButtonsPopup(message: 'dialog 메시지', buttons: <Widget>[]),
+              ],
+            ),
+          ),
+        ),
+      );
+      for (final String text in <String>['alert 메시지', 'dialog 메시지', '확인']) {
+        final RichText rich = tester.widget<RichText>(
+          find.descendant(of: find.text(text), matching: find.byType(RichText)),
+        );
+        expect(rich.textScaler, const TextScaler.linear(1.5), reason: text);
+      }
+    });
+  });
 }

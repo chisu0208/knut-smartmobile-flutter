@@ -1,34 +1,30 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 원본 매니페스트(docs/legacy/AndroidManifest.xml)의 권한. Firebase(c2dm) 권한은 푸시를
-         옮기지 않으므로 뺐다. -->
-    <uses-permission android:name="android.permission.DISABLE_KEYGUARD"/>
-    <uses-permission android:name="android.permission.USE_CREDENTIALS"/>
-    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <!-- 개선판(통합본 9-4): 원본 권한 가운데 실제로 쓰는 것만 남겼다. 실행 중 요청이 필요한 권한은
+         기능을 쓸 때 그 권한만 요청한다(통합본 1-1, IMPROVEMENTS.md).
+         뺀 것: DISABLE_KEYGUARD, USE_CREDENTIALS(폐기됨), BLUETOOTH_PRIVILEGED(시스템 앱 전용),
+         BLUETOOTH_CONNECT, CALL_PHONE(tel:은 DIAL), READ_PHONE_STATE·READ_PHONE_NUMBERS,
+         POST_NOTIFICATIONS(푸시 없음), NEARBY_WIFI_DEVICES, READ_EXTERNAL_STORAGE, 와이파이·네트워크
+         변경, VIBRATE, WAKE_LOCK, FOREGROUND_SERVICE, RECEIVE_BOOT_COMPLETED(라이브러리가 필요하면
+         라이브러리 매니페스트가 합쳐 넣는다). Firebase(c2dm) 권한은 이식판부터 없다. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 네트워크 연결 확인(팝업 열기, 연결 실패 안내) -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
-    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE"/>
-    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
-    <uses-permission android:name="android.permission.VIBRATE"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- 내려받기: Android 9 이하에서만 공용 Download 폴더에 쓰는 데 필요 -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
+    <!-- gps 명령, 비콘 검색(정밀·대략 위치) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- NFC 태그 읽기 -->
     <uses-permission android:name="android.permission.NFC"/>
+    <!-- 비콘 검색(Android 11 이하) -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30"/>
-    <uses-permission android:name="android.permission.BLUETOOTH_PRIVILEGED"/>
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
-    <uses-permission android:name="android.permission.CALL_PHONE"/>
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" android:maxSdkVersion="29"/>
-    <uses-permission android:name="android.permission.READ_PHONE_NUMBERS"/>
+    <!-- 비콘 검색(Android 12 이상, 근처 기기). 원본에는 없어서 Android 12 이상에서 비콘을 찾지 못했다.
+         AltBeacon은 검색 결과로 위치를 알아내므로 neverForLocation을 달지 않는다(달면 비콘이 걸러진다).
+         그래서 정밀 위치 권한도 함께 있어야 결과가 온다. 검색만 하므로 BLUETOOTH_CONNECT는 필요 없다. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"/>
+    <!-- QR 읽기 -->
     <uses-permission android:name="android.permission.CAMERA"/>
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <uses-permission
-        android:name="android.permission.NEARBY_WIFI_DEVICES"
-        android:usesPermissionFlags="neverForLocation"/>
 
     <uses-feature android:name="android.hardware.telephony" android:required="false"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
@@ -39,13 +35,13 @@
     <uses-feature android:name="android.hardware.wifi" android:required="false"/>
 
     <application
-        android:label="한국교통대학교 스마트모바일"
+        android:label="스마트모바일 개선판"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:allowBackup="false"
         android:supportsRtl="true"
-        android:usesCleartextTraffic="true"
-        android:requestLegacyExternalStorage="true">
+        android:usesCleartextTraffic="true">
         <!-- 원본 IntroActivity + MainActivity를 Flutter 화면 하나가 맡는다. 원본 MainActivity처럼
              singleTask로 두어 NFC·푸시로 다시 열릴 때 같은 화면이 onNewIntent를 받는다. -->
         <activity

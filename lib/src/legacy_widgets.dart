@@ -143,6 +143,65 @@ class LegacyButton extends StatelessWidget {
   }
 }
 
+/// 높이가 정해진 막대(메인 헤더 가운데·푸터 50dp, 팝업 헤더 58dp) 안의 글자 배율 상한.
+///
+/// 개선판은 버튼 글자도 휴대폰 글자 크기 설정을 따른다(통합본 5-8). 그런데 막대 높이는 원본처럼
+/// 정해져 있어서 글자를 크게 하면 버튼 글자(14sp, 위아래 여백 10dp) 아래가 잘린다. 그래서 이
+/// 막대 안에서만 칸에 들어가는 만큼까지 키운다.
+/// - [bar]: 50dp − 여백 20dp = 30dp ≥ 14 × 1.17 × 1.8
+/// - [popupHeader]: 제목 칸 40dp − 여백 20dp = 20dp ≥ 14 × 1.17 × 1.2
+class BarTextScale extends StatelessWidget {
+  const BarTextScale({
+    super.key,
+    required this.maxScaleFactor,
+    required this.child,
+  });
+
+  static const double bar = 1.8;
+  static const double popupHeader = 1.2;
+
+  final double maxScaleFactor;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => MediaQuery.withClampedTextScaling(
+    maxScaleFactor: maxScaleFactor,
+    child: child,
+  );
+}
+
+/// `d1(px, px, button)`: 아이콘 버튼을 넣는 정사각형 칸. 버튼은 왼쪽 위에 붙고 넘치면 잘린다.
+///
+/// 원본은 글자만 있는 버튼(대화상자 `예`·`아니오`, 글자 푸터)도 이 칸(예: 90px, Pixel 7에서
+/// 약 34dp)에 넣어서, 최소 88dp 폭 버튼의 가운데 글자가 잘렸다(`예`가 `여`로 보임). 개선판은
+/// [fitContent]면 칸 크기를 최소 크기로만 쓰고 버튼이 글자에 맞는 크기로 그려지게 둔다.
+class SquareSlot extends StatelessWidget {
+  const SquareSlot({
+    super.key,
+    required this.dimension,
+    required this.fitContent,
+    required this.child,
+  });
+
+  final double dimension;
+  final bool fitContent;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (fitContent) {
+      return ConstrainedBox(
+        constraints: BoxConstraints(minWidth: dimension, minHeight: dimension),
+        child: Center(widthFactor: 1, heightFactor: 1, child: child),
+      );
+    }
+    return SizedBox.square(
+      dimension: dimension,
+      child: Align(alignment: Alignment.topLeft, child: child),
+    );
+  }
+}
+
 class _DefaultButtonFrame extends StatelessWidget {
   const _DefaultButtonFrame({required this.child, this.onTap});
 
@@ -264,6 +323,9 @@ class RoundedWebViewClipper extends CustomClipper<Path> {
 }
 
 /// `alert_popup.xml`(확인 버튼) / `nfc_popup.xml`(취소 버튼).
+///
+/// 원본 글자 크기는 dp 단위(18dp)라 휴대폰 글자 크기 설정을 따르지 않았다. 개선판은 sp처럼
+/// 설정을 따른다(통합본 5-8).
 class MessagePopup extends StatelessWidget {
   const MessagePopup({
     super.key,
@@ -299,7 +361,6 @@ class MessagePopup extends StatelessWidget {
               child: Text(
                 message,
                 textAlign: TextAlign.center,
-                textScaler: TextScaler.noScaling, // textSize가 dp 단위
                 style: const TextStyle(fontSize: 18, color: Colors.black),
               ),
             ),
@@ -366,7 +427,8 @@ class _FilledDialogButton extends StatelessWidget {
   }
 }
 
-/// `dialog_popup.xml`: 위아래 회색 선 사이의 글, 그 아래 버튼 칸.
+/// `dialog_popup.xml`: 위아래 회색 선 사이의 글, 그 아래 버튼 칸. 글자는 휴대폰 글자 크기
+/// 설정을 따른다(통합본 5-8).
 class ButtonsPopup extends StatelessWidget {
   const ButtonsPopup({super.key, required this.message, required this.buttons});
 
@@ -393,7 +455,6 @@ class ButtonsPopup extends StatelessWidget {
                 padding: const EdgeInsets.all(10),
                 child: Text(
                   message,
-                  textScaler: TextScaler.noScaling, // textSize가 dp 단위
                   style: const TextStyle(fontSize: 18, color: Colors.black),
                 ),
               ),

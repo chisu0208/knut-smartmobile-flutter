@@ -15,8 +15,9 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "kr.ac.ut.mobile.flutter"
+        // 개선판: 원본(kr.ac.ut.mobile)·이식판(kr.ac.ut.mobile.flutter)과 한 폰에 나란히 설치한다.
+        // Kotlin 패키지(namespace)와 채널 이름은 이식판 그대로 둔다.
+        applicationId = "kr.ac.ut.mobile.renewal"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

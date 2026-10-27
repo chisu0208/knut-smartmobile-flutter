@@ -38,12 +38,13 @@ dependencies:
   webview_flutter_android: ^4.14.1
   shared_preferences: ^2.5.6
   path_provider: ^2.1.6
-  sensors_plus: ^7.1.1
   mobile_scanner: ^7.4.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # 시간 제한·지연 안내 테스트(test/connection_test.dart). flutter_test가 이미 쓰는 버전
+  fake_async: any
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

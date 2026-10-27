@@ -1,17 +1,39 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'allytte_http.dart';
+import 'connection_notice.dart';
 import 'device_prefs.dart';
+import 'legacy_json.dart';
 import 'legacy_widgets.dart';
 import 'native_bridge.dart';
 import 'uuid.dart';
 
-/// 원본 `IntroActivity`(HANDOFF 5.2): 권한 요청 → (저장된 시작 이미지 내려받기) → 기기 등록.
+/// 원본 `IntroActivity`(HANDOFF 5.2): (저장된 시작 이미지 내려받기) → 기기 등록.
 ///
-/// 기기 등록 응답 문자열(실패면 null)을 [onFinished]로 넘긴다. 원본은 이 값을
-/// `screen_info`로 MainActivity에 넘기고 자신은 끝낸다.
+/// 기기 등록 응답 문자열을 [onFinished]로 넘긴다. 원본은 이 값을 `screen_info`로
+/// MainActivity에 넘기고 자신은 끝낸다.
+///
+/// 원본은 등록에 실패해도(응답이 null) 그대로 메인으로 넘어가 빈 화면과 `*` 버튼만 보였고,
+/// 응답을 끝없이 기다렸다. 개선판은 [registerTimeout] 안에 화면 설정을 받지 못하면 여기서
+/// 한글 안내와 다시 시도 버튼을 보인다(통합본 1-9, 1-10).
 class IntroScreen extends StatefulWidget {
   const IntroScreen({super.key, this.pushUrl, required this.onFinished});
+
+  /// 기기 등록 요청 전체(연결부터 응답 끝까지)의 시간 제한.
+  static const Duration registerTimeout = Duration(seconds: 10);
+
+  /// 기기 등록 응답이 메인 화면을 구성할 명령 목록(`{"action":[…]}`)인지.
+  static bool isScreenInfo(String? response) {
+    if (response == null || response.isEmpty) return false;
+    try {
+      JObj.parse(response).getJSONArray('action');
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// 푸시 알림으로 열린 경우의 `push_url`. 있으면 기기 등록 주소 대신 이 주소로 POST한다.
   final String? pushUrl;
@@ -25,6 +47,8 @@ class _IntroScreenState extends State<IntroScreen> {
   late final DevicePrefs _prefs;
   late final DeviceInfo _info;
   bool _finished = false;
+  bool _registering = false;
+  ConnectionProblem? _problem;
 
   @override
   void initState() {
@@ -32,89 +56,24 @@ class _IntroScreenState extends State<IntroScreen> {
     _start();
   }
 
+  /// 원본은 여기서 권한 6개를 한꺼번에 요청하고, 하나라도 거부하면 설정 화면으로 보내고 끝냈다.
+  /// 개선판은 시작할 때 권한을 묻지 않고, 기능을 쓸 때 그 권한만 요청한다(통합본 1-1).
   Future<void> _start() async {
     _prefs = await DevicePrefs.instance();
     _info = await NativeBridge.deviceInfo();
-    await _checkPermissions();
-  }
-
-  /// `n0()`
-  Future<void> _checkPermissions() async {
-    final List<String> permissions;
-    if (_info.sdkInt >= 33) {
-      permissions = const <String>[
-        'android.permission.READ_PHONE_NUMBERS',
-        'android.permission.CALL_PHONE',
-        'android.permission.CAMERA',
-        'android.permission.ACCESS_COARSE_LOCATION',
-        'android.permission.POST_NOTIFICATIONS',
-        'android.permission.NEARBY_WIFI_DEVICES',
-      ];
-    } else if (_info.sdkInt >= 30) {
-      permissions = const <String>[
-        'android.permission.READ_PHONE_NUMBERS',
-        'android.permission.WRITE_EXTERNAL_STORAGE',
-        'android.permission.READ_EXTERNAL_STORAGE',
-        'android.permission.CALL_PHONE',
-        'android.permission.CAMERA',
-        'android.permission.ACCESS_COARSE_LOCATION',
-      ];
-    } else {
-      permissions = const <String>[
-        'android.permission.READ_PHONE_STATE',
-        'android.permission.WRITE_EXTERNAL_STORAGE',
-        'android.permission.READ_EXTERNAL_STORAGE',
-        'android.permission.CALL_PHONE',
-        'android.permission.CAMERA',
-        'android.permission.ACCESS_COARSE_LOCATION',
-      ];
-    }
-    if (!await NativeBridge.checkPermissions(permissions)) {
-      _onPermissionResult(await NativeBridge.requestPermissions(permissions));
-      return;
-    }
+    // 시작 이미지는 화면에 쓰이지 않으므로(HANDOFF 5.2) 기다리지 않고 뒤에서 받는다.
     final String splashUrl = _prefs.splashUrl;
-    if (splashUrl.isNotEmpty) {
-      await downloadSplash(splashUrl);
-    }
+    if (splashUrl.isNotEmpty) unawaited(downloadSplash(splashUrl));
     await _register();
-  }
-
-  /// `onRequestPermissionsResult`
-  void _onPermissionResult(List<PermissionResult> results) {
-    if (results.isEmpty) return;
-    String denied = '';
-    for (final PermissionResult r in results) {
-      if (r.result == 0) continue;
-      final String label = _permissionLabel(r.permission);
-      if (!denied.contains(label)) denied = '$denied,$label';
-    }
-    if (denied.isEmpty) {
-      // 이 경로에서는 시작 이미지를 내려받지 않는다(원본 그대로).
-      _register();
-      return;
-    }
-    NativeBridge.toast('권한이 거부되었습니다. 해당권한을 허용하셔야 합니다.');
-    if (_info.sdkInt >= 29) {
-      NativeBridge.showPermissionSettingsDialog(denied.substring(1));
-    } else {
-      NativeBridge.finishActivity();
-    }
-  }
-
-  /// 권한 이름에 들어 있는 단어로 고른 안내 이름(원본은 `indexOf(...) > 0`으로 차례대로 검사).
-  static String _permissionLabel(String permission) {
-    if (permission.indexOf('PHONE') > 0) return '전화';
-    if (permission.indexOf('MEDIA') > 0) return '사진및동영상,카메라';
-    if (permission.indexOf('CAMERA') > 0) return '카메라';
-    if (permission.indexOf('ACCESS') > 0) return '위치';
-    if (permission.indexOf('NOTIFICATION') > 0) return '알림';
-    if (permission.indexOf('NEARBY') > 0) return '근처기기';
-    return permission.indexOf('STORAGE') > 0 ? '파일및미디어' : '기타';
   }
 
   /// `l0()`: 기기 토큰을 준비하고 기기 등록 주소(또는 push_url)로 POST한다.
   Future<void> _register() async {
+    if (_registering || _finished || !mounted) return;
+    setState(() {
+      _registering = true;
+      _problem = null;
+    });
     String token = _prefs.deviceToken;
     if (token.isEmpty) {
       token = randomUuid().toUpperCase();
@@ -128,8 +87,27 @@ class _IntroScreenState extends State<IntroScreen> {
     final String url =
         widget.pushUrl ??
         'https://mobile.ut.ac.kr//service/api/device/save$query';
-    final String? response = await allyttePost(url, _info.versionName, token);
+    final Stopwatch watch = Stopwatch()..start();
+    final String? response = await allyttePost(
+      url,
+      _info.versionName,
+      token,
+      timeout: IntroScreen.registerTimeout,
+    );
     if (_finished || !mounted) return;
+    if (!IntroScreen.isScreenInfo(response)) {
+      final bool online = await NativeBridge.isNetworkConnected();
+      if (!mounted) return;
+      setState(() {
+        _registering = false;
+        _problem = !online
+            ? ConnectionProblem.offline
+            : watch.elapsed >= IntroScreen.registerTimeout
+            ? ConnectionProblem.slow
+            : ConnectionProblem.failed;
+      });
+      return;
+    }
     _finished = true;
     widget.onFinished(response);
   }
@@ -137,11 +115,22 @@ class _IntroScreenState extends State<IntroScreen> {
   @override
   Widget build(BuildContext context) {
     // 원본 배경 그림(drawable 0x7f0700f2)은 해상도별 split APK에만 있어 아직 없다(HANDOFF 5.2).
-    // iv_intro 이미지뷰는 gone이라 실제로 보이는 것은 배경뿐이다.
-    return const ColoredBox(
+    // iv_intro 이미지뷰는 gone이라 실제로 보이는 것은 배경뿐이다. 개선판은 등록하는 동안 로딩
+    // 표시를, 실패하면 연결 안내를 보인다.
+    final ConnectionProblem? problem = _problem;
+    return ColoredBox(
       color: windowBackground,
       child: SafeArea(
-        child: SizedBox.expand(child: ColoredBox(color: Colors.white)),
+        child: SizedBox.expand(
+          child: ColoredBox(
+            color: Colors.white,
+            child: problem != null
+                ? ConnectionNotice(problem: problem, onRetry: _register)
+                : _registering
+                ? const Center(child: LoadingSpinner())
+                : null,
+          ),
+        ),
       ),
     );
   }

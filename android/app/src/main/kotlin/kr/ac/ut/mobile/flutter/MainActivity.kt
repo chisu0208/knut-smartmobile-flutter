@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.Uri
@@ -42,9 +43,13 @@ import kotlin.system.exitProcess
 class MainActivity : FlutterActivity(), BeaconConsumer {
     companion object {
         const val CHANNEL = "kr.ac.ut.mobile.flutter/native"
-        const val REQUEST_INTRO_PERMISSIONS = 1
-        const val REQUEST_GPS_PERMISSION = 0
+        const val REQUEST_PERMISSIONS = 1
+        const val REQUEST_STORAGE_PERMISSION = 1004
         const val REQUEST_FILE_CHOOSER = 1
+
+        /** 개선판이 따로 기억하는 값(루팅 안내를 보였는지). */
+        private const val PREFS = "renewal"
+        private const val KEY_ROOTING_NOTICE_SHOWN = "rooting_notice_shown"
 
         /** foreground dispatch로 들어온 NFC 인텐트 표시. */
         private const val EXTRA_FOREGROUND_DISPATCH = "kr.ac.ut.mobile.flutter.FOREGROUND_DISPATCH"
@@ -57,6 +62,7 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
 
     private var launchPushUrl: String? = null
     private var pendingPermissionResult: MethodChannel.Result? = null
+    private var pendingDownload: (() -> Unit)? = null
     var fileChooserCallback: ValueCallback<Array<Uri>>? = null
 
     private var nfcAdapter: NfcAdapter? = null
@@ -123,25 +129,29 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
             "isNetworkConnected" -> result.success(isNetworkConnected())
             "checkPermissions" -> result.success(allGranted(call.arguments<List<String>>()!!))
             "requestPermissions" -> {
+                if (pendingPermissionResult != null) {
+                    // 이미 다른 기능이 권한을 묻는 중이다: 이 요청은 중단된 것으로 돌려준다.
+                    result.success(emptyList<Any>())
+                    return
+                }
                 pendingPermissionResult = result
                 ActivityCompat.requestPermissions(
                     this,
                     call.arguments<List<String>>()!!.toTypedArray(),
-                    REQUEST_INTRO_PERMISSIONS,
+                    REQUEST_PERMISSIONS,
                 )
             }
-            "showPermissionSettingsDialog" -> {
-                showPermissionSettingsDialog(call.arguments<String>()!!)
+            "shouldShowRationale" -> result.success(
+                ActivityCompat.shouldShowRequestPermissionRationale(this, call.arguments<String>()!!),
+            )
+            "showPermissionSettings" -> {
+                showPermissionSettings(call.arguments<String>()!!)
                 result.success(null)
             }
             "toast" -> {
                 val text = call.argument<String>("text")
                 val long = call.argument<Boolean>("long") == true
                 Toast.makeText(this, text, if (long) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show()
-                result.success(null)
-            }
-            "finishActivity" -> {
-                finish()
                 result.success(null)
             }
             "finishAffinity" -> {
@@ -174,6 +184,10 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
             }
             "destroyWebView" -> {
                 webViews.destroy(call.arguments<Number>()!!.toLong())
+                result.success(null)
+            }
+            "clearHistory" -> {
+                webViews.clearHistory(call.arguments<Number>()!!.toLong())
                 result.success(null)
             }
             "loadUrl" -> {
@@ -233,32 +247,59 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode != REQUEST_INTRO_PERMISSIONS) return
-        val result = pendingPermissionResult ?: return
-        pendingPermissionResult = null
-        result.success(
-            permissions.indices.filter { it < grantResults.size }.map {
-                mapOf("permission" to permissions[it], "result" to grantResults[it])
-            },
-        )
+        when (requestCode) {
+            REQUEST_PERMISSIONS -> {
+                val result = pendingPermissionResult ?: return
+                pendingPermissionResult = null
+                result.success(
+                    permissions.indices.filter { it < grantResults.size }.map {
+                        mapOf("permission" to permissions[it], "result" to grantResults[it])
+                    },
+                )
+            }
+            REQUEST_STORAGE_PERMISSION -> {
+                val download = pendingDownload
+                pendingDownload = null
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    download?.invoke()
+                } else {
+                    Toast.makeText(this, "저장공간 권한이 없어 파일을 내려받지 못했습니다.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
 
-    /** IntroActivity `o0()`. */
-    private fun showPermissionSettingsDialog(labels: String) {
+    /**
+     * 원본 IntroActivity `o0()`는 거부한 권한을 `[카메라]권한을 추가해 주세요.`로 알리고 설정 화면을
+     * 연 뒤 앱을 끝냈다. 개선판은 기능을 쓸 때만 안내하고, 설정으로 갈지는 사용자가 고른다(통합본 1-1).
+     */
+    private fun showPermissionSettings(message: String) {
         AlertDialog.Builder(this)
-            .setTitle("")
-            .setMessage("[$labels]권한을 추가해 주세요.")
-            .setCancelable(false)
-            .setPositiveButton("OK") { _, _ ->
+            .setMessage(message)
+            .setPositiveButton("설정 열기") { _, _ ->
                 val intent = Intent()
                 intent.action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
                 intent.addCategory(Intent.CATEGORY_DEFAULT)
                 intent.data = Uri.parse("package:$packageName")
-                startActivity(intent)
-                finish()
+                runCatching { startActivity(intent) }
             }
+            .setNegativeButton("닫기", null)
             .create()
             .show()
+    }
+
+    /**
+     * 내려받기(Android 9 이하만): 공용 Download 폴더에 쓰려면 저장공간 권한이 필요하다. 원본은
+     * 첫 실행에 받아 두었고, 개선판은 내려받을 때 요청한 뒤 허용하면 이어서 내려받는다.
+     */
+    fun requestStoragePermission(download: () -> Unit) {
+        pendingDownload = download
+        Toast.makeText(this, "파일을 저장하려면 저장공간 권한이 필요합니다.", Toast.LENGTH_LONG).show()
+        ActivityCompat.requestPermissions(
+            this,
+            arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+            REQUEST_STORAGE_PERMISSION,
+        )
     }
 
     /** MainActivity `d0()`. */
@@ -277,65 +318,72 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
         return true
     }
 
-    /** MainActivity `onCreate` 끝의 루팅 확인과 `j1()`. */
+    /**
+     * MainActivity `onCreate` 끝의 루팅 확인과 `j1()`.
+     *
+     * 원본은 `su`를 실행해 보고 성공하면 `루팅된 기기는 사용할 수 없습니다.`를 띄운 뒤 앱을 끝냈다.
+     * 개선판은 앱을 막지 않고 처음 한 번만 안내한다(통합본 1-2). `su`를 실행하면 루팅 관리 앱이 권한
+     * 요청 창을 띄울 수 있어서, 실행하지 않고 이 앱이 실행할 수 있는 `su` 파일이 있는지만 본다.
+     * (에뮬레이터의 Google APIs 이미지에는 셸만 실행할 수 있는 `su`가 있다. 원본도 이때는 실행에
+     * 실패해 루팅으로 보지 않았다.)
+     */
     private fun checkRooting() {
-        try {
-            Runtime.getRuntime().exec("su")
-        } catch (_: Exception) {
-            return
-        }
+        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_ROOTING_NOTICE_SHOWN, false) || !hasSuBinary()) return
+        prefs.edit().putBoolean(KEY_ROOTING_NOTICE_SHOWN, true).apply()
         AlertDialog.Builder(this)
-            .setTitle("")
-            .setMessage("루팅된 기기는 사용할 수 없습니다.")
-            .setCancelable(false)
-            .setPositiveButton("OK") { _, _ -> exitApp() }
+            .setMessage(
+                "루팅된 기기로 보입니다.\n" +
+                    "루팅된 기기에서는 개인정보가 다른 앱에 노출될 수 있으니 주의해서 사용해 주세요.",
+            )
+            .setPositiveButton("확인", null)
             .create()
             .show()
     }
 
+    private fun hasSuBinary(): Boolean {
+        val dirs = (System.getenv("PATH") ?: "").split(':') +
+            listOf("/system/bin", "/system/xbin", "/sbin", "/su/bin", "/data/local/bin", "/data/local/xbin")
+        return dirs.filter { it.isNotEmpty() }.distinct().any {
+            val su = java.io.File(it, "su")
+            su.exists() && su.canExecute()
+        }
+    }
+
     /**
-     * MainActivity `W0()`. 정밀 위치 권한이 없으면 요청만 하고 0으로 보낸다.
+     * MainActivity `W0()`. 위치 권한이 없으면 0으로 보낸다.
      * 위도 자리에 경도가 들어가는 것, 방위각이 늘 0인 것까지 원본 그대로다(HANDOFF 5.14).
+     *
+     * 원본은 정밀 위치 권한만 보고, 없으면 여기서 요청만 한 채 0을 보냈다. 개선판은 Dart가 먼저
+     * 위치 권한을 요청하고(통합본 1-1), 대략 위치만 허용했으면 network 위치를 쓴다.
      */
     private fun gpsUrl(url: String): String? {
         return try {
             val manager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
-            var longitude = 0.0
-            val latitude: Double
-            val altitude: Double
-            val latitude2: Double
-            val altitude2: Double
-            if (ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.ACCESS_FINE_LOCATION) !=
+            val fine = ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.ACCESS_FINE_LOCATION) ==
                 PackageManager.PERMISSION_GRANTED
-            ) {
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                    REQUEST_GPS_PERMISSION,
-                )
-                latitude2 = 0.0
-                altitude2 = 0.0
-            } else {
-                val network = manager.getLastKnownLocation("network")
+            val coarse = ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED
+            var longitude = 0.0
+            var latitude = 0.0
+            var altitude = 0.0
+            if (fine || coarse) {
+                val network = runCatching { manager.getLastKnownLocation("network") }.getOrNull()
                 if (network != null) {
                     longitude = network.longitude
                     latitude = network.latitude
                     altitude = network.altitude
-                } else {
-                    latitude = 0.0
-                    altitude = 0.0
-                }
-                val gps = manager.getLastKnownLocation("gps")
-                if (gps != null) {
-                    longitude = gps.longitude
-                    latitude2 = gps.latitude
-                    altitude2 = gps.altitude
-                } else {
-                    latitude2 = latitude
-                    altitude2 = altitude
                 }
             }
-            String.format(url + "&latitude=%s&longitude=%s&altitude=%s&azimuth=%s", longitude, latitude2, altitude2, 0.0f)
+            if (fine) {
+                val gps = runCatching { manager.getLastKnownLocation("gps") }.getOrNull()
+                if (gps != null) {
+                    longitude = gps.longitude
+                    latitude = gps.latitude
+                    altitude = gps.altitude
+                }
+            }
+            String.format(url + "&latitude=%s&longitude=%s&altitude=%s&azimuth=%s", longitude, latitude, altitude, 0.0f)
         } catch (_: Exception) {
             null
         }
@@ -436,14 +484,24 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQUEST_FILE_CHOOSER || resultCode != RESULT_OK || data == null) return
+        if (requestCode != REQUEST_FILE_CHOOSER) return
         val callback = fileChooserCallback ?: return
-        val clip = data.clipData
-        if (clip == null) {
-            data.data?.let { callback.onReceiveValue(arrayOf(it)) }
-        } else {
-            callback.onReceiveValue(Array(clip.itemCount) { clip.getItemAt(it).uri })
+        fileChooserCallback = null
+        // 원본은 선택을 취소하면 웹뷰에 아무 답도 하지 않아, 같은 페이지에서 파일 선택이 다시 열리지
+        // 않았다. 개선판은 취소도 빈 결과로 알린다.
+        val clip = data?.clipData
+        val uris = when {
+            resultCode != RESULT_OK || data == null -> null
+            clip != null -> Array(clip.itemCount) { clip.getItemAt(it).uri }
+            else -> data.data?.let { arrayOf(it) }
         }
+        callback.onReceiveValue(uris)
+    }
+
+    /** 휴대폰 글자 크기 설정을 바꾸면 웹 글자 크기도 따라간다(통합본 5-1). 매니페스트 configChanges에 fontScale이 있다. */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        webViews.applyTextZoom()
     }
 
     override fun onDestroy() {

@@ -6,6 +6,7 @@ import android.app.DownloadManager
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
@@ -36,12 +37,12 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import io.flutter.plugins.webviewflutter.WebChromeClientProxyApi
 import io.flutter.plugins.webviewflutter.WebViewFlutterAndroidExternalApi
 import java.net.URISyntaxException
 import java.net.URLDecoder
+import kotlin.math.roundToInt
 
 /**
  * webview_flutter가 만든 네이티브 WebView에 원본 MainActivity의 WebView 설정을 그대로 입힌다.
@@ -51,11 +52,15 @@ import java.net.URLDecoder
  * - kind `child`: `window.open`으로 열린 창(크롬 `f`, 클라이언트 `g`)
  * - kind `grandchild`: 그 창에서 다시 열린 창(크롬 `C0091f`)
  *
- * 페이지 시작·끝 이벤트는 플러그인 클라이언트를 거쳐 Dart로 그대로 전달된다.
+ * 페이지 시작·끝 이벤트는 플러그인 클라이언트를 거쳐 Dart로 그대로 전달된다. 개선판은 로딩 표시와
+ * 연결 안내(통합본 3-31, 1-9, 6-10)를 위해 플러그인이 넘기지 않는 이벤트를 `webEvent`로 더 보낸다.
  */
 class WebViewBridge(private val activity: MainActivity) {
     private val pendingWindows = HashMap<Int, Message>()
     private var nextToken = 1
+
+    /** 설정을 입힌 웹뷰들. 휴대폰 글자 크기를 바꾸면 모두 다시 맞춘다. */
+    private val installed = LinkedHashSet<Long>()
 
     private fun webView(id: Long): WebView? {
         val binding = activity.pluginBinding ?: return null
@@ -66,15 +71,23 @@ class WebViewBridge(private val activity: MainActivity) {
     fun install(id: Long, kind: String) {
         val webView = webView(id) ?: return
         val s = webView.settings
-        WebView.setWebContentsDebuggingEnabled(true)
+        // 원본은 출시 버전에서도 켜 두었다. 개선판은 debug 빌드에서만 켠다(통합본 9-1).
+        WebView.setWebContentsDebuggingEnabled(
+            (activity.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0,
+        )
         // webview_flutter가 생성자에서 바꿔 둔 값을 Android 기본값으로 되돌린 뒤 원본 설정을 입힌다.
         s.loadWithOverviewMode = false
         s.useWideViewPort = false
-        s.builtInZoomControls = false
-        s.displayZoomControls = true
+        // 원본은 확대를 막았다(builtInZoomControls 기본값 false). 개선판은 두 손가락 확대를 허용하고
+        // 확대 버튼은 숨긴다(통합본 5-2). 페이지가 확대를 막아도 풀어 주는 스크립트는 ShellWebViewClient.
+        s.setSupportZoom(true)
+        s.builtInZoomControls = true
+        s.displayZoomControls = false
         s.javaScriptEnabled = true
         s.domStorageEnabled = true
-        s.textZoom = 85
+        // 원본은 85% 고정이었다. 개선판은 100%에 휴대폰 글자 크기 설정을 곱한다(통합본 5-1).
+        s.textZoom = textZoom()
+        installed.add(id)
         when (kind) {
             "main" -> {
                 s.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
@@ -85,7 +98,8 @@ class WebViewBridge(private val activity: MainActivity) {
                 webView.scrollBarStyle = View.SCROLLBARS_OUTSIDE_OVERLAY
                 webView.isScrollbarFadingEnabled = true
                 webView.addJavascriptInterface(AllytteJs(), "allytteAndroid")
-                webView.setDownloadListener(null)
+                // 원본 메인 웹뷰는 내려받지 않는다. 이동이 내려받기로 끝났다는 것만 알린다.
+                webView.setDownloadListener { url, _, _, _, _ -> event(id, "download", url) }
             }
             "popup" -> {
                 s.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
@@ -94,7 +108,7 @@ class WebViewBridge(private val activity: MainActivity) {
                 s.javaScriptCanOpenWindowsAutomatically = true
                 s.setSupportMultipleWindows(true)
                 webView.addJavascriptInterface(AllytteJs(), "allytteAndroid")
-                webView.setDownloadListener(downloadListener())
+                webView.setDownloadListener(downloadListener(id))
             }
             else -> {
                 s.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
@@ -106,15 +120,15 @@ class WebViewBridge(private val activity: MainActivity) {
                 s.allowFileAccessFromFileURLs = true
                 @Suppress("DEPRECATION")
                 s.allowUniversalAccessFromFileURLs = true
-                webView.setDownloadListener(downloadListener())
+                webView.setDownloadListener(downloadListener(id))
             }
         }
         // 클라이언트를 감싸려면 현재 클라이언트를 읽어야 해서 Android 8.0 이상에서만 가능하다.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            webView.webViewClient = ShellWebViewClient(kind, webView.webViewClient)
+            webView.webViewClient = ShellWebViewClient(id, kind, webView.webViewClient)
             val chrome = webView.webChromeClient
             if (kind != "main" && chrome != null) {
-                webView.webChromeClient = ShellChromeClient(kind, chrome)
+                webView.webChromeClient = ShellChromeClient(id, kind, chrome)
             }
         }
     }
@@ -127,8 +141,30 @@ class WebViewBridge(private val activity: MainActivity) {
         message.sendToTarget()
     }
 
+    fun clearHistory(id: Long) {
+        webView(id)?.clearHistory()
+    }
+
     fun destroy(id: Long) {
         webView(id)?.destroy()
+        installed.remove(id)
+    }
+
+    /** 휴대폰 글자 크기 설정(fontScale)을 반영한 웹 글자 크기(%). */
+    private fun textZoom(): Int = (activity.resources.configuration.fontScale * 100).roundToInt()
+
+    /** 앱이 떠 있는 동안 글자 크기 설정을 바꾸면 열려 있는 웹뷰에도 바로 반영한다. */
+    fun applyTextZoom() {
+        val zoom = textZoom()
+        installed.toList().forEach { id ->
+            val webView = webView(id)
+            if (webView == null) installed.remove(id) else webView.settings.textZoom = zoom
+        }
+    }
+
+    /** Dart [WebEntry]에 보내는 웹뷰 이벤트: navigate, committed, visible, download. */
+    private fun event(id: Long, type: String, url: String?, extra: Map<String, Any> = emptyMap()) {
+        activity.invokeDart("webEvent", mapOf("id" to id, "type" to type, "url" to url) + extra)
     }
 
     /** 원본 `B0()`/`c1()`의 `loadUrl(url, extraHeaders)`. */
@@ -210,8 +246,30 @@ class WebViewBridge(private val activity: MainActivity) {
         return false
     }
 
-    /** 원본 `j`/`e` 다운로드 처리. */
-    private fun downloadListener() = DownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
+    /**
+     * 원본 `j`/`e` 다운로드 처리.
+     *
+     * 원본은 실패하면 그때 저장공간 권한을 요청하고 다시 눌러야 했다. 개선판은 권한이 필요한
+     * Android 9 이하에서만, 권한이 없을 때 먼저 요청하고 허용하면 이어서 내려받는다(통합본 1-1).
+     *
+     * 공지 첨부파일처럼 `window.open`으로 열린 창이 내려받기만 하고 그린 페이지가 없으면 Dart가
+     * `download` 이벤트를 받고 그 창을 닫는다(`page_load.dart` `closeWindowAfterDownload`).
+     */
+    private fun downloadListener(id: Long) = DownloadListener {
+            url, userAgent, contentDisposition, mimeType, _ ->
+        event(id, "download", url)
+        val download = { enqueueDownload(url, userAgent, contentDisposition, mimeType) }
+        val write = Manifest.permission.WRITE_EXTERNAL_STORAGE
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
+            ContextCompat.checkSelfPermission(activity, write) != PackageManager.PERMISSION_GRANTED
+        ) {
+            activity.requestStoragePermission(download)
+        } else {
+            download()
+        }
+    }
+
+    private fun enqueueDownload(url: String, userAgent: String, contentDisposition: String, mimeType: String) {
         try {
             val request = DownloadManager.Request(Uri.parse(url))
             val manager = activity.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
@@ -224,7 +282,7 @@ class WebViewBridge(private val activity: MainActivity) {
             request.setMimeType(mimeType)
             request.addRequestHeader("cookie", CookieManager.getInstance().getCookie(url))
             request.addRequestHeader("User-Agent", userAgent)
-            request.setDescription("Downloading File")
+            request.setDescription("파일을 내려받는 중입니다") // 원본 "Downloading File"(통합본 7-1)
             request.setAllowedOverMetered(true)
             request.setAllowedOverRoaming(true)
             request.setTitle(fileName)
@@ -237,22 +295,28 @@ class WebViewBridge(private val activity: MainActivity) {
             manager.enqueue(request)
             Toast.makeText(activity.applicationContext, "파일이 다운로드됩니다.", Toast.LENGTH_LONG).show()
         } catch (_: Exception) {
-            val write = Manifest.permission.WRITE_EXTERNAL_STORAGE
-            if (ContextCompat.checkSelfPermission(activity, write) != PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(activity.baseContext, "다운로드를 위해\n권한이 필요합니다.", Toast.LENGTH_LONG).show()
-                ActivityCompat.requestPermissions(activity, arrayOf(write), 1004)
-            }
+            Toast.makeText(activity.baseContext, "파일을 내려받지 못했습니다.", Toast.LENGTH_LONG).show()
         }
     }
 
-    /** 링크 처리만 원본대로 하고 나머지는 플러그인 클라이언트(Dart 이벤트)로 넘긴다. */
+    /**
+     * 링크 처리만 원본대로 하고 나머지는 플러그인 클라이언트(Dart 이벤트)로 넘긴다.
+     * 본문 이동 시작(navigate), 방문 기록 갱신(committed), 첫 화면(visible)은 따로 알린다.
+     * navigate의 `byUser`는 사용자가 누른 이동인지(서버 리디렉션·스크립트 이동이 아님)다.
+     */
     private inner class ShellWebViewClient(
+        private val id: Long,
         private val kind: String,
         private val inner: WebViewClient,
     ) : WebViewClient() {
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             if (overrideUrl(kind, request.url.toString())) return true
-            return inner.shouldOverrideUrlLoading(view, request)
+            val handled = inner.shouldOverrideUrlLoading(view, request)
+            if (!handled && request.isForMainFrame) {
+                val byUser = request.hasGesture() && !request.isRedirect
+                event(id, "navigate", request.url.toString(), mapOf("byUser" to byUser))
+            }
+            return handled
         }
 
         @Deprecated("Deprecated in Java")
@@ -265,11 +329,18 @@ class WebViewBridge(private val activity: MainActivity) {
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) =
             inner.onPageStarted(view, url, favicon)
 
-        override fun onPageFinished(view: WebView, url: String) = inner.onPageFinished(view, url)
+        override fun onPageFinished(view: WebView, url: String) {
+            view.evaluateJavascript(ALLOW_ZOOM_SCRIPT, null)
+            inner.onPageFinished(view, url)
+        }
 
         override fun onLoadResource(view: WebView, url: String) = inner.onLoadResource(view, url)
 
-        override fun onPageCommitVisible(view: WebView, url: String) = inner.onPageCommitVisible(view, url)
+        override fun onPageCommitVisible(view: WebView, url: String) {
+            view.evaluateJavascript(ALLOW_ZOOM_SCRIPT, null)
+            inner.onPageCommitVisible(view, url)
+            event(id, "visible", url)
+        }
 
         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
             inner.shouldInterceptRequest(view, request)
@@ -292,8 +363,10 @@ class WebViewBridge(private val activity: MainActivity) {
         override fun onFormResubmission(view: WebView, dontResend: Message, resend: Message) =
             inner.onFormResubmission(view, dontResend, resend)
 
-        override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) =
+        override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
             inner.doUpdateVisitedHistory(view, url, isReload)
+            event(id, "committed", url)
+        }
 
         override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) =
             inner.onReceivedSslError(view, handler, error)
@@ -322,6 +395,7 @@ class WebViewBridge(private val activity: MainActivity) {
      * 받으므로 그 클래스를 상속한다.
      */
     private inner class ShellChromeClient(
+        private val id: Long,
         private val kind: String,
         private val inner: WebChromeClient,
     ) : WebChromeClientProxyApi.SecureWebChromeClient() {
@@ -336,14 +410,14 @@ class WebViewBridge(private val activity: MainActivity) {
 
         override fun onCloseWindow(window: WebView) {
             if (kind == "child" || kind == "grandchild") {
-                activity.invokeDart("closeWindow", kind)
+                activity.invokeDart("closeWindow", id)
             } else {
                 inner.onCloseWindow(window)
             }
         }
 
         override fun onJsAlert(view: WebView, url: String?, message: String?, result: JsResult): Boolean {
-            activity.invokeDart("hideLoading", null)
+            // 원본은 로딩 표시(입력을 막는 창)를 먼저 걷었다. 개선판의 로딩 표시는 입력을 막지 않는다.
             AlertDialog.Builder(activity)
                 .setTitle("")
                 .setMessage(message)
@@ -351,7 +425,7 @@ class WebViewBridge(private val activity: MainActivity) {
                     if (keyCode == KeyEvent.KEYCODE_BACK) result.confirm()
                     true
                 }
-                .setPositiveButton(android.R.string.ok) { _, _ -> result.confirm() }
+                .setPositiveButton("확인") { _, _ -> result.confirm() }
                 .setCancelable(false)
                 .create()
                 .show()
@@ -362,8 +436,10 @@ class WebViewBridge(private val activity: MainActivity) {
             AlertDialog.Builder(activity)
                 .setTitle("")
                 .setMessage(message)
-                .setPositiveButton(android.R.string.ok) { _, _ -> result.confirm() }
-                .setNegativeButton(android.R.string.cancel) { _, _ -> result.cancel() }
+                .setPositiveButton("확인") { _, _ -> result.confirm() }
+                .setNegativeButton("취소") { _, _ -> result.cancel() }
+                // 원본은 뒤로 키·바깥 터치로 닫으면 페이지에 답하지 않아, 페이지가 답을 기다린 채 멈출 수 있었다.
+                .setOnCancelListener { result.cancel() }
                 .create()
                 .show()
             return true
@@ -376,14 +452,15 @@ class WebViewBridge(private val activity: MainActivity) {
         ): Boolean {
             // 손자 창(원본 C0091f)에는 파일 선택이 없다.
             if (kind == "grandchild") return false
-            Toast.makeText(activity, "파일 선택창을 선택하였습니다.", Toast.LENGTH_SHORT).show()
+            // 원본은 여기서 `파일 선택창을 선택하였습니다.` 토스트를 띄웠다. 개선판은 없앴다(통합본 7-2).
+            activity.fileChooserCallback?.onReceiveValue(null)
             activity.fileChooserCallback = filePathCallback
             val intent = Intent(Intent.ACTION_GET_CONTENT)
             intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
             intent.addCategory(Intent.CATEGORY_OPENABLE)
             intent.type = "*/*"
             @Suppress("DEPRECATION")
-            activity.startActivityForResult(Intent.createChooser(intent, "Select Picture"), MainActivity.REQUEST_FILE_CHOOSER)
+            activity.startActivityForResult(Intent.createChooser(intent, "파일 선택"), MainActivity.REQUEST_FILE_CHOOSER)
             return true
         }
 
@@ -428,6 +505,23 @@ class WebViewBridge(private val activity: MainActivity) {
     }
 
     companion object {
+        /**
+         * 학교 페이지 대부분이 viewport에 `user-scalable=no`를 넣어 확대를 막는다(통합본 5-2).
+         * 첫 화면과 페이지 끝에서 viewport의 확대 금지·최대 배율만 바꿔 두 손가락 확대를 허용한다.
+         */
+        private val ALLOW_ZOOM_SCRIPT = """
+            (function () {
+              var metas = document.querySelectorAll('meta[name="viewport"]');
+              for (var i = 0; i < metas.length; i++) {
+                var content = metas[i].getAttribute('content') || '';
+                var next = content
+                  .replace(/user-scalable\s*=\s*(no|0)/gi, 'user-scalable=yes')
+                  .replace(/maximum-scale\s*=\s*[0-9.]+/gi, 'maximum-scale=5');
+                if (next !== content) metas[i].setAttribute('content', next);
+              }
+            })();
+        """.trimIndent()
+
         /** Java `String.split(regex)`처럼 끝의 빈 문자열을 버린다. */
         fun javaSplit(value: String, delimiter: String): List<String> {
             if (!value.contains(delimiter)) return listOf(value)
