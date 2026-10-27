@@ -801,23 +801,25 @@ class _MainScreenState extends State<MainScreen>
   ///
   /// 원본은 이전 팝업 웹뷰를 틀에서 빼기만 하고, 그 팝업에서 열린 자식·손자 창은 틀에 그대로
   /// 두었다(새 팝업 아래에 가려진 채 뒤로 키를 먼저 받았다). 개선판은 이전 팝업과 그 창들을 틀에서
-  /// 빼고 해제한다(통합본 9-5).
+  /// 빼고 해제한다(통합본 9-5). 이전 팝업은 새 팝업으로 바꿔 그린 뒤에 해제한다(새 웹뷰를
+  /// 만드는 동안 화면이 그려지면, 화면에 붙은 채 해제될 수 있었다).
   Future<void> _z0() async {
     for (final WebEntry entry in _frame.toList()) {
       if (entry.kind != 'popup') _removeWindow(entry);
     }
     final WebEntry? old = _popup;
-    if (old != null) {
-      _frame.remove(old);
-      _destroyAfterFrame(old);
-    }
     final WebEntry entry = await WebEntry.create(
       'popup',
       onChanged: _refresh,
       fullscreen: this,
     );
+    if (old != null) _frame.remove(old);
     _popup = entry;
     _frame.add(entry);
+    if (old != null) {
+      _refresh();
+      _destroyAfterFrame(old);
+    }
   }
 
   /// `i1(align, header, footer, 헤더투명)`: 팝업 모서리 규칙(HANDOFF 5.7.1).
@@ -898,12 +900,18 @@ class _MainScreenState extends State<MainScreen>
 
   /// `A0()`: `webview="main"` 저장 후 닫기(runOnUiThread). 닫는 규칙과 개선판에서 바뀐 점
   /// (닫으면 뒤로 키를 메인으로 되돌림)은 [PopupState.close].
+  ///
+  /// 개선판: 팝업에서 열린 자식·손자 창도 함께 닫는다. 원본은 ✕나 배경 탭으로 닫으면 그 창들이
+  /// 숨은 채 남아, 다음 뒤로 키가 보이지 않는 창으로 가서 아무 반응이 없었다.
   Future<void> _a0(
     Future<void> Function(Future<void> Function() op) runOnUi,
   ) async {
     _prefs.webview = 'main';
     await runOnUi(() async {
       _popupState.close();
+      for (final WebEntry entry in _frame.toList()) {
+        if (entry.kind != 'popup') _removeWindow(entry);
+      }
       _refresh();
     });
   }

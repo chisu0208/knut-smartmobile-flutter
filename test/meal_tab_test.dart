@@ -61,6 +61,27 @@ void main() {
     expect(setting.restaurantFor('chungju'), 'chungju-staff');
   });
 
+  testWidgets('자정을 넘겨 앱으로 돌아오면 새 오늘이 골라진다', (WidgetTester tester) async {
+    DateTime now = DateTime(2026, 10, 27, 23, 50);
+    await pumpMeal(tester, clock: () => now);
+    expect(find.text('10월 27일 화요일'), findsOneWidget);
+    now = DateTime(2026, 10, 28, 8, 10);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(find.text('10월 28일 수요일'), findsOneWidget);
+  });
+
+  testWidgets('같은 날 돌아오면 고른 날을 그대로 둔다', (WidgetTester tester) async {
+    await pumpMeal(tester);
+    await tester.tap(find.byKey(const ValueKey<String>('meal-day-2026-10-30')));
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(find.text('10월 30일 금요일'), findsOneWidget);
+  });
+
   testWidgets('다른 날을 고르면 그날 메뉴', (WidgetTester tester) async {
     await pumpMeal(tester);
     await tester.tap(find.byKey(const ValueKey<String>('meal-day-2026-10-30')));

@@ -73,6 +73,34 @@ void main() {
     });
   });
 
+  group('아이콘 내려받기의 시간 제한', () {
+    test('서버가 답하지 않으면 제한 시간이 지나고 받지 못한 것으로 본다', () async {
+      final HttpServer server = await HttpServer.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      final List<HttpRequest> held = <HttpRequest>[];
+      server.listen(held.add);
+      final Stopwatch watch = Stopwatch()..start();
+      final BitmapFetch result = await HttpOverrides.runWithHttpOverrides(
+        () => fetchBitmap(
+          'http://127.0.0.1:${server.port}/icon.png',
+          timeout: const Duration(milliseconds: 300),
+        ),
+        _RealHttp(),
+      );
+      watch.stop();
+      expect(result, isA<BitmapFailed>());
+      expect(held, hasLength(1));
+      expect(watch.elapsed, lessThan(const Duration(seconds: 3)));
+      await server.close(force: true);
+    });
+
+    test('기본 제한은 10초', () {
+      expect(bitmapTimeout, const Duration(seconds: 10));
+    });
+  });
+
   group('기기 등록 응답 확인', () {
     test('명령 목록이 없으면 메인으로 넘어가지 않는다', () {
       expect(IntroScreen.isScreenInfo(null), isFalse);

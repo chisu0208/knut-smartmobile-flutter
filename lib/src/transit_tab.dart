@@ -37,7 +37,7 @@ class TransitTab extends StatefulWidget {
 }
 
 class _TransitTabState extends State<TransitTab>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final TabController _tabs = TabController(length: 3, vsync: this);
   Timer? _tick;
 
@@ -56,12 +56,24 @@ class _TransitTabState extends State<TransitTab>
   void initState() {
     super.initState();
     widget.setting.addListener(_onSetting);
+    WidgetsBinding.instance.addObserver(this);
+    _scheduleTick();
+  }
+
+  /// 화면을 껐다 켜면 타이머가 늦게 울려서(잠든 동안 멈춤) 남은 시간이 최대 1분 옛 값으로 남는다.
+  /// 앱으로 돌아오면 바로 다시 계산하고 다음 분에 맞춰 타이머를 다시 건다.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    _tick?.cancel();
+    setState(() {});
     _scheduleTick();
   }
 
   @override
   void dispose() {
     _tick?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     widget.setting.removeListener(_onSetting);
     _tabs.dispose();
     super.dispose();

@@ -73,6 +73,20 @@ void main() {
     expect(find.text('13분'), findsOneWidget);
   });
 
+  testWidgets('앱으로 돌아오면 타이머를 기다리지 않고 남은 시간을 다시 계산한다', (
+    WidgetTester tester,
+  ) async {
+    DateTime now = DateTime(2026, 10, 27, 14, 32, 30);
+    await pumpTransit(tester, clock: () => now);
+    expect(find.text('15분'), findsOneWidget);
+    // 화면이 꺼진 동안 시계만 흘렀다(타이머는 아직 울리지 않음).
+    now = DateTime(2026, 10, 27, 14, 42, 10);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(find.text('5분'), findsOneWidget);
+  });
+
   testWidgets('주말·공휴일·막차 뒤: 운행하지 않는다는 안내와 다음 운행일', (WidgetTester tester) async {
     DateTime now = DateTime(2026, 10, 31, 10, 0); // 토요일
     await pumpTransit(tester, clock: () => now);

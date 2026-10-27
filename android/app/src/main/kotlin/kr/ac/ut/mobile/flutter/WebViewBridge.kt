@@ -27,6 +27,7 @@ import android.webkit.JsPromptResult
 import android.webkit.JsResult
 import android.webkit.PermissionRequest
 import android.webkit.SslErrorHandler
+import android.webkit.URLUtil
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -40,6 +41,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import io.flutter.plugins.webviewflutter.WebChromeClientProxyApi
 import io.flutter.plugins.webviewflutter.WebViewFlutterAndroidExternalApi
+import java.io.File
 import java.net.URISyntaxException
 import java.net.URLDecoder
 
@@ -300,12 +302,7 @@ class WebViewBridge(private val activity: MainActivity) {
         try {
             val request = DownloadManager.Request(Uri.parse(url))
             val manager = activity.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-            val parts = javaSplit(
-                URLDecoder.decode(contentDisposition, "UTF-8").replace("attachment; filename=", ""),
-                "=",
-            )
-            val fileName = parts[parts.size - 1].replace("\"", "")
-                .replace(Regex("\\p{Z}"), "_").replace(";", "")
+            val fileName = downloadFileName(url, contentDisposition, mimeType)
             request.setMimeType(mimeType)
             request.addRequestHeader("cookie", CookieManager.getInstance().getCookie(url))
             request.addRequestHeader("User-Agent", userAgent)
@@ -318,7 +315,8 @@ class WebViewBridge(private val activity: MainActivity) {
             request.allowScanningByMediaScanner()
             request.setAllowedOverMetered(true)
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+            // 저장 경로는 이미 인코딩된 주소 조각으로 붙는다. 이름의 `%` 등이 풀리지 않도록 인코딩해 넘긴다.
+            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, Uri.encode(fileName))
             manager.enqueue(request)
             Toast.makeText(activity.applicationContext, "파일이 다운로드됩니다.", Toast.LENGTH_LONG).show()
         } catch (_: Exception) {
@@ -585,6 +583,36 @@ class WebViewBridge(private val activity: MainActivity) {
                     Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
                 ).inv()
             return intent
+        }
+
+        /**
+         * 내려받을 파일 이름. 원본 규칙: `Content-Disposition`을 URL 디코딩하고 `attachment; filename=`을
+         * 뗀 뒤 마지막 `=` 뒤를 쓰고, 따옴표·`;`를 빼고 공백을 `_`로 바꾼다.
+         *
+         * 개선판:
+         * - 이름에 `%`가 그냥 들어 있으면(`100%.pdf`) 디코딩이 예외를 내서 원본은 내려받지 못했다.
+         *   디코딩할 수 없으면 받은 글자 그대로 쓴다.
+         * - `filename*=UTF-8''...`(RFC 5987)이 있으면 그 이름을 쓴다. 원본은 `UTF-8''`까지 이름에 넣었다.
+         * - 경로(`../`)는 떼고, 이름이 비면 주소에서 이름을 짐작한다.
+         */
+        fun downloadFileName(url: String, contentDisposition: String?, mimeType: String?): String {
+            val disposition = contentDisposition ?: ""
+            val extended = Regex("filename\\*\\s*=\\s*UTF-8''([^;]+)", RegexOption.IGNORE_CASE)
+                .find(disposition)?.groupValues?.get(1)?.trim()
+            val raw = if (extended != null) {
+                Uri.decode(extended)
+            } else {
+                val parts = javaSplit(decodeOrSame(disposition).replace("attachment; filename=", ""), "=")
+                if (parts.isEmpty()) "" else parts[parts.size - 1]
+            }
+            val name = File(raw.replace("\"", "").replace(Regex("\\p{Z}"), "_").replace(";", "")).name
+            return name.ifBlank { URLUtil.guessFileName(url, contentDisposition, mimeType) }
+        }
+
+        private fun decodeOrSame(value: String): String = try {
+            URLDecoder.decode(value, "UTF-8")
+        } catch (_: IllegalArgumentException) {
+            value
         }
 
         /** Java `String.split(regex)`처럼 끝의 빈 문자열을 버린다. */

@@ -2,11 +2,13 @@ package kr.ac.ut.mobile.flutter
 
 import android.Manifest
 import android.app.PendingIntent
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.nfc.NdefMessage
 import android.nfc.NfcAdapter
@@ -17,6 +19,7 @@ import android.os.Bundle
 import android.os.Process
 import android.os.RemoteException
 import android.provider.Settings
+import android.webkit.CookieManager
 import android.webkit.ValueCallback
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -86,7 +89,10 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
             PendingIntent.FLAG_MUTABLE,
         )
         val manager = BeaconManager.getInstanceForApplication(this)
-        manager.beaconParsers.add(BeaconParser().setBeaconLayout("m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24"))
+        // 개선판: BeaconManager는 앱에 하나라서, 화면이 다시 만들어질 때마다 같은 해석기가 쌓이지 않게 한다.
+        val layout = "m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24"
+        val parser = BeaconParser().setBeaconLayout(layout)
+        if (manager.beaconParsers.none { it.layout == parser.layout }) manager.beaconParsers.add(parser)
         beaconManager = manager
     }
 
@@ -253,13 +259,16 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
         ""
     }
 
-    /** BaseActivity `U()`: 와이파이(1) 또는 모바일(0)로 연결되어 있는지. */
-    @Suppress("DEPRECATION")
+    /**
+     * BaseActivity `U()`: 인터넷에 연결되어 있는지.
+     *
+     * 원본은 와이파이(1)·모바일(0)만 연결로 보아서, VPN이나 유선랜을 쓰면 인터넷이 되는데도 팝업이
+     * 모두 연결 안내로 막혔다. 개선판은 지금 기본 네트워크가 인터넷을 쓸 수 있는지만 본다.
+     */
     private fun isNetworkConnected(): Boolean {
         val manager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager? ?: return false
-        val info = manager.activeNetworkInfo ?: return false
-        return info.isConnected &&
-            (info.type == ConnectivityManager.TYPE_WIFI || info.type == ConnectivityManager.TYPE_MOBILE)
+        val capabilities = manager.getNetworkCapabilities(manager.activeNetwork) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
     private fun allGranted(permissions: List<String>): Boolean =
@@ -322,20 +331,35 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
         )
     }
 
-    /** MainActivity `d0()`. */
+    /** MainActivity `d0()`. 개선판: 프로세스를 끝내기 전에 쿠키(로그인)를 디스크에 쓴다. */
     private fun exitApp() {
+        CookieManager.getInstance().flush()
         finish()
         exitProcess(0)
         @Suppress("UNREACHABLE_CODE")
         Process.killProcess(Process.myPid())
     }
 
-    /** MainActivity `a1()`. */
+    /**
+     * MainActivity `a1()`: 앱을 열고, 없으면 false(스토어로 간다).
+     *
+     * 원본의 `getLaunchIntentForPackage`는 Android 11부터 다른 앱이 보이지 않아(패키지 공개 범위)
+     * 설치된 앱도 늘 없다고 나왔다. 개선판은 그 앱의 시작 화면을 바로 열어 보고, 없을 때만 false다.
+     * 화면을 여는 것은 공개 범위의 제한을 받지 않는다.
+     */
     private fun launchPackage(packageName: String): Boolean {
-        val intent = packageManager.getLaunchIntentForPackage(packageName) ?: return false
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivity(intent)
-        return true
+        val intent = Intent(Intent.ACTION_MAIN)
+            .addCategory(Intent.CATEGORY_LAUNCHER)
+            .setPackage(packageName)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return try {
+            startActivity(intent)
+            true
+        } catch (_: ActivityNotFoundException) {
+            false
+        } catch (_: SecurityException) {
+            false
+        }
     }
 
     /**
@@ -403,7 +427,9 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
                     altitude = gps.altitude
                 }
             }
-            String.format(url + "&latitude=%s&longitude=%s&altitude=%s&azimuth=%s", longitude, latitude, altitude, 0.0f)
+            // 원본은 주소까지 형식 문자열에 넣어서, 주소에 `%`(예: `%20`)가 있으면 예외로 위치를 보내지
+            // 못했다. 개선판은 뒤에 붙는 부분만 형식으로 만든다.
+            url + String.format("&latitude=%s&longitude=%s&altitude=%s&azimuth=%s", longitude, latitude, altitude, 0.0f)
         } catch (_: Exception) {
             null
         }
@@ -415,6 +441,9 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
         val manager = beaconManager ?: return
         val region = Region("nearMeScanning", null, null, null)
         beaconRegion = region
+        // 개선판: 검색할 때마다 연결이 다시 되므로, 전에 붙인 알림을 떼고 하나만 붙인다(원본은 쌓여서
+        // 같은 비콘이 여러 번 들어갔다).
+        manager.removeAllRangeNotifiers()
         manager.addRangeNotifier { found, _ ->
             if (found.isNotEmpty()) beacons.addAll(found)
         }

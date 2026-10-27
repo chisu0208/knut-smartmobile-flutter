@@ -82,28 +82,46 @@ class BitmapFailed extends BitmapFetch {
   const BitmapFailed();
 }
 
-Future<BitmapFetch> fetchBitmap(String url) async {
-  final HttpClient client = HttpClient();
+/// 메뉴 아이콘·헤더 배경 하나를 받는 데 기다리는 시간.
+const Duration bitmapTimeout = Duration(seconds: 10);
+
+/// 그림 하나를 내려받아 읽는다.
+///
+/// 원본은 시간 제한 없이 기다렸고, 그동안 명령 처리기 줄 전체(뒤로 키·팝업 닫기 포함)가 멈췄다.
+/// 개선판은 연결 3초, 다 받을 때까지 [timeout] 안에 끝나지 않으면 받지 못한 것으로 본다.
+Future<BitmapFetch> fetchBitmap(
+  String url, {
+  Duration timeout = bitmapTimeout,
+}) async {
+  final HttpClient client = HttpClient()
+    ..connectionTimeout = const Duration(seconds: 3);
   try {
-    final HttpClientRequest request = await client.getUrl(Uri.parse(url));
-    final HttpClientResponse response = await request.close();
-    if (response.statusCode >= 400) return const BitmapFailed();
-    final BytesBuilder builder = BytesBuilder(copy: false);
-    await for (final List<int> chunk in response) {
-      builder.add(chunk);
-    }
-    final Uint8List bytes = builder.takeBytes();
-    try {
-      final ui.Codec codec = await ui.instantiateImageCodec(bytes);
-      final ui.FrameInfo frame = await codec.getNextFrame();
-      return BitmapLoaded(bytes, frame.image);
-    } catch (_) {
-      return const BitmapUndecodable();
-    }
+    return await _fetchBitmap(client, url).timeout(timeout);
   } catch (_) {
     return const BitmapFailed();
   } finally {
     client.close(force: true);
+  }
+}
+
+Future<BitmapFetch> _fetchBitmap(HttpClient client, String url) async {
+  final HttpClientRequest request = await client.getUrl(Uri.parse(url));
+  final HttpClientResponse response = await request.close();
+  if (response.statusCode >= 400) return const BitmapFailed();
+  final BytesBuilder builder = BytesBuilder(copy: false);
+  await for (final List<int> chunk in response) {
+    builder.add(chunk);
+  }
+  final Uint8List bytes = builder.takeBytes();
+  ui.Codec? codec;
+  try {
+    codec = await ui.instantiateImageCodec(bytes);
+    final ui.FrameInfo frame = await codec.getNextFrame();
+    return BitmapLoaded(bytes, frame.image);
+  } catch (_) {
+    return const BitmapUndecodable();
+  } finally {
+    codec?.dispose();
   }
 }
 

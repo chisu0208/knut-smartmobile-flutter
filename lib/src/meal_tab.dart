@@ -31,15 +31,29 @@ class MealTab extends StatefulWidget {
   State<MealTab> createState() => _MealTabState();
 }
 
-class _MealTabState extends State<MealTab> {
+class _MealTabState extends State<MealTab> with WidgetsBindingObserver {
   /// 고른 날과 그 날을 고른 식당. 식당이 바뀌면 다시 고른다.
   DateTime? _day;
   String? _dayFor;
+
+  /// 마지막으로 그린 날(오늘 날짜). 탭은 닫히지 않고 남으므로, 자정을 넘겨 돌아오면 다시 고른다.
+  DateTime? _drawnOn;
 
   @override
   void initState() {
     super.initState();
     widget.setting.addListener(_onSetting);
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  /// 앱으로 돌아왔는데 날짜가 바뀌었으면 고른 날을 지워 오늘이 다시 골라지게 한다.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    final DateTime? drawnOn = _drawnOn;
+    if (drawnOn != null && drawnOn != dateOnly(widget.clock())) {
+      setState(() => _day = null);
+    }
   }
 
   @override
@@ -53,6 +67,7 @@ class _MealTabState extends State<MealTab> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.setting.removeListener(_onSetting);
     super.dispose();
   }
@@ -80,6 +95,7 @@ class _MealTabState extends State<MealTab> {
 
   @override
   Widget build(BuildContext context) {
+    _drawnOn = dateOnly(widget.clock());
     final MealCampus? campus = _campus;
     final List<CampusOption> campuses = <CampusOption>[
       for (final MealCampus c in widget.data.campuses)

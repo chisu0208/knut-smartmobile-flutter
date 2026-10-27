@@ -487,7 +487,8 @@ TIME = re.compile(r"(\d{1,2}:\d{2})")
 
 def build_city() -> dict:
     """시내버스 페이지(999·700): 교통대 → 터미널, 터미널 → 교통대."""
-    tables = [block for kind, block in page_blocks(fetch_text(CITY_PAGE)) if kind == "table"]
+    page = fetch_text(CITY_PAGE)
+    tables = [block for kind, block in page_blocks(page) if kind == "table"]
     if not tables:
         raise SystemExit("시내버스 페이지에서 시간표를 찾지 못했습니다.")
     rows = [row for row in tables[0] if row and TIME.search(" ".join(row)) and not row[0].startswith("차")]
@@ -535,7 +536,6 @@ def build_city() -> dict:
                     "arrive": hhmm(terminal_arrive),
                 }
                 from_campus.append(trip)
-    page = fetch_text(CITY_PAGE)
     notice = re.search(r"※([^<]*운행[^<]*)", page)
     return {
         "id": "chungju-city",
