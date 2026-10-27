@@ -15,6 +15,7 @@ import 'legacy_json.dart';
 import 'legacy_widgets.dart';
 import 'native_bridge.dart';
 import 'popup_animation.dart';
+import 'popup_state.dart';
 import 'qr_scan_screen.dart';
 import 'uuid.dart';
 import 'web_entry.dart';
@@ -84,9 +85,11 @@ class _MainScreenState extends State<MainScreen>
   final List<WebEntry> _frame = <WebEntry>[]; // webview_frame(f7668Y0)의 자식 순서
 
   // ---- 상태 값 ----
-  bool _popupShown = false; // f7670B
-  String? _popupAlign; // f7672C
-  bool _mainOwner = true; // f7676E
+  // 팝업이 다 나와 있는지(f7670B), 정렬(f7672C), 뒤로 키 주인(f7676E), 배경·애니메이션
+  late final PopupState _popupState = PopupState(
+    onAnimationStart: _ensureTicker,
+    webviewIsMain: () => _prefs.webview == 'main',
+  );
   bool _childOpen = false; // f7717a0
   bool _grandchildOpen = false; // f7718b0
   String? _nfcUrl; // f7722f0
@@ -105,11 +108,8 @@ class _MainScreenState extends State<MainScreen>
   List<_MenuButton>? _footerItems; // null이면 레이아웃의 "*" 버튼
 
   // ---- 팝업 ----
-  bool _bgVisible = false; // popup_bg_container
   Alignment _bgGravity = Alignment.topRight; // XML gravity="right"
   String? _popupSizeAlign; // 팝업 크기를 정한 정렬(null = 꽉). 크기는 그릴 때 계산(6-12)
-  late final AnimTrack _bgTrack = AnimTrack(_animationListener);
-  late final AnimTrack _bodyTrack = AnimTrack(_animationListener);
   late final Ticker _ticker = createTicker(_onTick);
   bool _popupHeaderVisible = false;
   final GradientBox _popupHeaderBox = GradientBox(
@@ -370,11 +370,7 @@ class _MainScreenState extends State<MainScreen>
     if (!mounted) return;
     setState(() {});
     // 숨어 있던 동안 멈춘 애니메이션은 다시 그려질 때 이어서 시간이 흐른다.
-    if (_bgDrawn &&
-        (_bgTrack.running || _bodyTrack.running) &&
-        !_ticker.isActive) {
-      _ticker.start();
-    }
+    if (_popupState.animating) _ensureTicker();
   }
 
   /// `Q0(message)`: 알림 명령을 만들어 처리기에 넣는다(따옴표 처리 없이 그대로 끼워 넣음).
@@ -394,9 +390,9 @@ class _MainScreenState extends State<MainScreen>
   // ======================================================================
 
   Future<void> _configureMain(JObj action) async {
-    _mainOwner = true;
-    if (_popupShown) await _a0((Future<void> Function() op) => op());
-    _bgTrack.clear();
+    _popupState.mainOwner = true;
+    if (_popupState.shown) await _a0((Future<void> Function() op) => op());
+    _popupState.cancelAnimation();
     try {
       final JObj config = action.getJSONObject('config');
       config.getString('show');
@@ -624,8 +620,7 @@ class _MainScreenState extends State<MainScreen>
   // ======================================================================
 
   Future<void> _configurePopup(JObj action) async {
-    _mainOwner = false;
-    _popupShown = false;
+    _popupState.beginOpen();
     await _z0();
     try {
       final JObj config = action.getJSONObject('config');
@@ -638,45 +633,22 @@ class _MainScreenState extends State<MainScreen>
       final String footer = !config.isNull('footer')
           ? config.getString('footer')
           : 'null';
-      _popupAlign = align;
       // 알 수 없는 정렬이면 원본처럼 이전 팝업 크기를 그대로 쓴다.
       if (popupSizePx(align, 0, 0) != null) _popupSizeAlign = align;
       switch (align) {
         case 'left':
           _bgGravity = Alignment.topLeft;
-          if (!_popupShown) {
-            _bgVisible = true;
-            _startAnimation(_bgTrack, LegacyAnim.inLeft);
-          }
         case 'right':
           _bgGravity = Alignment.topRight;
-          if (!_popupShown) {
-            _bgVisible = true;
-            _startAnimation(_bodyTrack, LegacyAnim.inRight);
-          }
         case 'center':
-          _bgGravity = Alignment.center;
-          _popupShown = true;
-          _bgTrack.clear();
-          _bgVisible = true;
         case 'full':
           _bgGravity = Alignment.center;
-          _popupShown = true;
-          _bgTrack.clear();
-          _bgVisible = true;
         case 'top':
           _bgGravity = Alignment.topCenter;
-          if (!_popupShown) {
-            _bgVisible = true;
-            _startAnimation(_bodyTrack, LegacyAnim.inTop);
-          }
         case 'bottom':
           _bgGravity = Alignment.bottomCenter;
-          if (!_popupShown) {
-            _bgVisible = true;
-            _startAnimation(_bodyTrack, LegacyAnim.inBottom);
-          }
       }
+      _popupState.enter(align); // 정렬별 등장(PopupState)
       _popupHeaderVisible = false;
       if (config.isNull('header')) {
         _i1(align, header, footer, false);
@@ -832,34 +804,14 @@ class _MainScreenState extends State<MainScreen>
   // 팝업 닫기 A0와 애니메이션
   // ======================================================================
 
-  /// `A0()`: `webview="main"` 저장 후 닫기(runOnUiThread).
+  /// `A0()`: `webview="main"` 저장 후 닫기(runOnUiThread). 닫는 규칙과 개선판에서 바뀐 점
+  /// (닫으면 뒤로 키를 메인으로 되돌림)은 [PopupState.close].
   Future<void> _a0(
     Future<void> Function(Future<void> Function() op) runOnUi,
   ) async {
     _prefs.webview = 'main';
     await runOnUi(() async {
-      if (!_popupShown) {
-        _bgVisible = false;
-        // `left` 팝업은 등장 애니메이션을 배경에 건다(fillAfter). 붙어 있으면 숨겨도 그려져서
-        // 배경과 팝업이 남았다(HANDOFF 5.12). 개선판은 떼어 낸다. 등장 중이었으면 끝 알림이
-        // "다 나옴"으로 바꾸므로 되돌린다.
-        _bgTrack.clear();
-        _popupShown = false;
-      } else {
-        switch (_popupAlign) {
-          case 'left':
-            _startAnimation(_bodyTrack, LegacyAnim.outLeft);
-          case 'right':
-            _startAnimation(_bodyTrack, LegacyAnim.outRight);
-          case 'top':
-            _startAnimation(_bodyTrack, LegacyAnim.outTop);
-          case 'bottom':
-            _startAnimation(_bodyTrack, LegacyAnim.outBottom);
-          default:
-            _bgVisible = false;
-            _popupShown = false;
-        }
-      }
+      _popupState.close();
       _refresh();
     });
   }
@@ -871,58 +823,13 @@ class _MainScreenState extends State<MainScreen>
         .catchError((Object _) {});
   }
 
-  void _startAnimation(AnimTrack track, LegacyAnim anim) {
-    track.start(anim);
+  void _ensureTicker() {
     if (!_ticker.isActive) _ticker.start();
   }
 
-  /// 원본 onCreate에서 애니메이션마다 붙인 리스너(y: 왼쪽, z: 오른쪽, A: 위, x: 아래).
-  void Function() _animationListener(LegacyAnim anim) {
-    switch (anim) {
-      case LegacyAnim.inRight:
-      case LegacyAnim.outRight:
-        return () {
-          if (_popupShown) {
-            _bgVisible = false;
-            _bodyTrack.clear();
-            _bgTrack.clear(); // 개선판: 앞선 left 팝업의 배경 애니메이션도 뗀다(A0 참고)
-            _popupShown = false;
-          } else {
-            _popupShown = _prefs.webview != 'main';
-          }
-        };
-      case LegacyAnim.inLeft:
-      case LegacyAnim.outLeft:
-      case LegacyAnim.inTop:
-      case LegacyAnim.outTop:
-      case LegacyAnim.inBottom:
-      case LegacyAnim.outBottom:
-        return () {
-          if (!_popupShown) {
-            _popupShown = true;
-            return;
-          }
-          _bgVisible = false;
-          _bodyTrack.clear();
-          // 개선판: left 팝업이 배경에 건 등장 애니메이션도 떼어, 닫은 뒤 배경이 남지 않게 한다
-          // (HANDOFF 5.12). 이미 끝난 애니메이션이라 끝 알림은 다시 오지 않는다.
-          _bgTrack.clear();
-          _popupShown = false;
-        };
-    }
-  }
-
-  /// 배경이 보이거나 애니메이션이 붙어 있으면 그려진다(그려질 때만 애니메이션 시간이 흐름).
-  bool get _bgDrawn => _bgVisible || _bgTrack.attached;
-
   void _onTick(Duration _) {
-    if (_bgDrawn) {
-      final Duration now =
-          SchedulerBinding.instance.currentSystemFrameTimeStamp;
-      _bgTrack.tick(now);
-      if (_bgDrawn) _bodyTrack.tick(now);
-    }
-    if (!(_bgDrawn && (_bgTrack.running || _bodyTrack.running))) _ticker.stop();
+    _popupState.tick(SchedulerBinding.instance.currentSystemFrameTimeStamp);
+    if (!_popupState.animating) _ticker.stop();
     _refresh();
   }
 
@@ -934,16 +841,13 @@ class _MainScreenState extends State<MainScreen>
   /// 아직 새 화면이 그려지지 않은 것이 있으면 켠다. 연결 안내가 떠 있으면 그 안내가 대신한다.
   bool get _loading {
     bool loading(WebEntry? e) => e != null && e.busy && e.problem == null;
-    return loading(_main) || (_bgDrawn && _frame.any(loading));
+    return loading(_main) || (_popupState.drawn && _frame.any(loading));
   }
 
   /// 팝업 연결 안내의 `닫기`: 뒤로 키로 팝업을 닫을 때와 같다.
   void _closePopupFromNotice() {
     _queue = _queue
-        .then((_) async {
-          await _a0((Future<void> Function() op) => op());
-          _mainOwner = true;
-        })
+        .then((_) => _a0((Future<void> Function() op) => op()))
         .catchError((Object _) {});
   }
 
@@ -1284,7 +1188,7 @@ class _MainScreenState extends State<MainScreen>
       }
       return;
     }
-    if (_mainOwner) {
+    if (_popupState.mainOwner) {
       final WebEntry? web = _main;
       if (web != null && await web.canGoBack()) {
         await web.goBack();
@@ -1301,8 +1205,7 @@ class _MainScreenState extends State<MainScreen>
     if (popup != null && await popup.canGoBack()) {
       await popup.goBack();
     } else {
-      await _a0((Future<void> Function() op) => op());
-      _mainOwner = true;
+      await _a0((Future<void> Function() op) => op()); // 뒤로 키 주인도 메인으로
     }
   }
 
@@ -1420,7 +1323,7 @@ class _MainScreenState extends State<MainScreen>
                                 // GONE인 동안에도 웹뷰는 붙어 있다(Android 뷰처럼).
                                 Positioned.fill(
                                   child: Offstage(
-                                    offstage: !_bgDrawn,
+                                    offstage: !_popupState.drawn,
                                     child: _popupLayer(constraints.biggest),
                                   ),
                                 ),
@@ -1568,7 +1471,7 @@ class _MainScreenState extends State<MainScreen>
     final Size self = Size(width, height);
     return SizedBox.expand(
       child: Transform.translate(
-        offset: _bgTrack.offset(parent, parent),
+        offset: _popupState.bg.offset(parent, parent),
         transformHitTests: false, // 옛 Android 애니메이션은 터치 위치를 옮기지 않는다
         child: GestureDetector(
           onTap: _onBackgroundTap,
@@ -1577,7 +1480,7 @@ class _MainScreenState extends State<MainScreen>
             child: Align(
               alignment: _bgGravity,
               child: Transform.translate(
-                offset: _bodyTrack.offset(parent, self),
+                offset: _popupState.body.offset(parent, self),
                 transformHitTests: false,
                 child: SizedBox(
                   width: width,
