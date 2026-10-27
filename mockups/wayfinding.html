@@ -8,24 +8,24 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=block" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet">
 <style>
-  /* Material 3 색 (교통·학식 목업과 같은 값) */
+  /* 색: 팀원 도서관 Figma 토큰(교통·학식 목업과 같은 값) */
   :root {
-    --primary: #3557a8;
+    --primary: #a3162b;
     --on-primary: #ffffff;
-    --primary-container: #d9e2ff;
-    --on-primary-container: #0b2a6b;
-    --secondary-container: #dce2f9;
-    --on-secondary-container: #141b2c;
-    --error: #ba1a1a;
+    --primary-container: #fbecee;
+    --on-primary-container: #6e0e1c;
+    --secondary-container: #fbecee;
+    --on-secondary-container: #6e0e1c;
+    --error: #a3162b;
     --pin: #d93a2b;
-    --surface: #faf9ff;
-    --surface-low: #f3f3fa;
-    --surface-mid: #ededf4;
-    --surface-high: #e7e8ef;
-    --on-surface: #1a1b21;
-    --on-surface-variant: #45464f;
-    --outline: #757680;
-    --outline-variant: #c5c6d0;
+    --surface: #f4f5f8;
+    --surface-low: #ffffff;
+    --surface-mid: #ffffff;
+    --surface-high: #eef0f4;
+    --on-surface: #17191e;
+    --on-surface-variant: #5b6070;
+    --outline: #9aa0ae;
+    --outline-variant: #e6e8ee;
     --page: #eceef3;
     /* 지도 */
     --map-land: #f0f2ed;
@@ -81,7 +81,7 @@
   .appbar h2 { font-size: 22px; font-weight: 500; flex: 1; }
   .appbar .ms { color: var(--on-surface); width: 40px; text-align: center; }
   .gesture { height: 22px; display: flex; align-items: center; justify-content: center; flex: none; background: var(--surface-low); }
-  .gesture::after { content: ''; width: 108px; height: 4px; border-radius: 2px; background: #1a1b21; opacity: .35; }
+  .gesture::after { content: ''; width: 108px; height: 4px; border-radius: 2px; background: #17191e; opacity: .35; }
 
   /* 지도 */
   .map { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--map-land); }
@@ -127,7 +127,7 @@
   .fromto .r { display: flex; align-items: center; gap: 12px; height: 48px; font-size: 15px; }
   .fromto .r + .r { border-top: 1px solid var(--outline-variant); }
   .fromto .r small { font-size: 12px; color: var(--on-surface-variant); margin-left: 4px; }
-  .dot-start { width: 14px; height: 14px; border-radius: 7px; background: var(--primary); box-shadow: 0 0 0 3px #fff, 0 0 0 5px rgba(53, 87, 168, .25); flex: none; margin: 0 1px; }
+  .dot-start { width: 14px; height: 14px; border-radius: 7px; background: var(--primary); box-shadow: 0 0 0 3px #fff, 0 0 0 5px rgba(163, 22, 43, .25); flex: none; margin: 0 1px; }
   .fromto .ms.pin { color: var(--pin); font-size: 22px; margin-left: -3px; }
   .swap { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: var(--on-surface-variant); }
   .summary { display: flex; align-items: baseline; gap: 10px; padding: 0 24px 12px; }
