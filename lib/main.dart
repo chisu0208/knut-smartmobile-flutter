@@ -25,7 +25,9 @@ class SmartMobileApp extends StatelessWidget {
 
   final String? pushUrl;
 
-  /// 강조색은 학교 대표색 하나(통합본 5-10). 원본 테마 색은 #006BD0이었다.
+  /// 강조색은 대표색 하나(통합본 5-10, 2차에서 Figma 토큰 primary). 원본 테마 색은 #006BD0이었다.
+  /// 1차의 원본 모양 위젯(헤더·푸터 버튼, 대화상자)이 쓰는 Material 2 테마다. 새 화면은
+  /// [AppTheme.material3].
   static final ThemeData theme = ThemeData(
     colorScheme: const ColorScheme.light(
       primary: schoolColor,

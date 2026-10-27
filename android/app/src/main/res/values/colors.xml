@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 학교 대표색(통합본 5-10). Dart 쪽 같은 값: lib/src/app_colors.dart `schoolColor`.
+    <!-- 대표색(개선판 2차, 팀원 도서관 Figma 토큰 primary). 1차의 학교색 #76161B를 바꿨다.
+         Dart 쪽 같은 값: lib/src/app_colors.dart `AppColors.primary`(`schoolColor`).
          두 값이 같은지는 test/app_colors_test.dart가 확인한다. 고른 근거는 IMPROVEMENTS.md. -->
-    <color name="school">#76161B</color>
-    <!-- 적응형 아이콘 배경: 엠블럼 그림의 바탕색 -->
-    <color name="ic_launcher_background">#76161B</color>
+    <color name="school">#A3162B</color>
+    <!-- 적응형 아이콘 배경. 엠블럼 그림(전경)은 원본 그대로라 바탕은 #76161B이고, 전경이 아이콘
+         모양 밖까지 덮어서 이 색은 런처가 아이콘을 움직일 때 가장자리에만 잠깐 보인다. -->
+    <color name="ic_launcher_background">@color/school</color>
 </resources>

@@ -12,8 +12,8 @@ import 'app_colors.dart';
 /// mobile_scanner가 한다. 인식 범위는 원본처럼 가운데 250dp 사각형.
 ///
 /// 색(통합본 5-10): 원본 테두리(`qr_area.png`)·닫기 버튼(`btn_qr_close.png`)은 청록, 가운데 선은
-/// 파랑(#1976D2)이었다. 학교 대표색(적갈색)은 어두운 카메라 화면 위에서 잘 보이지 않아, 테두리·
-/// 선·강조 글자는 흰색으로, 닫기 버튼은 흰 테두리를 두른 학교색 원에 흰 X로 그린다.
+/// 파랑(#1976D2)이었다. 대표색(`AppColors.primary`)은 어두운 카메라 화면 위에서 잘 보이지 않아,
+/// 테두리·선·강조 글자는 흰색으로, 닫기 버튼은 흰 테두리를 두른 대표색 원에 흰 X로 그린다.
 class QrScanScreen extends StatefulWidget {
   const QrScanScreen({super.key});
 
@@ -98,7 +98,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
                   ),
                 ),
                 // zxing_status_view: 상자 위 10dp, 흰색 20dp. 원본은 "QR코드"만 #03DAC5였다.
-                // 어두운 카메라 화면 위에서 학교색(적갈색)은 잘 안 보여 굵은 흰 글자로 강조한다(5-10).
+                // 어두운 카메라 화면 위에서 대표색은 잘 안 보여 굵은 흰 글자로 강조한다(5-10).
                 Positioned(
                   left: 0,
                   right: 0,
@@ -287,7 +287,7 @@ class QrFramePainter extends CustomPainter {
   bool shouldRepaint(QrFramePainter oldDelegate) => false;
 }
 
-/// 닫기 버튼(원본 `btn_qr_close.png`, 청록 원에 흰 X): 학교색 원에 흰 X. 어두운 카메라 화면
+/// 닫기 버튼(원본 `btn_qr_close.png`, 청록 원에 흰 X): 대표색 원에 흰 X. 어두운 카메라 화면
 /// 위에서 원의 윤곽이 보이도록 흰 테두리를 두른다.
 class QrCloseButtonPainter extends CustomPainter {
   const QrCloseButtonPainter();
