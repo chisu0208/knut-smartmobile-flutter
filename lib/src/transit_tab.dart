@@ -49,6 +49,9 @@ class _TransitTabState extends State<TransitTab>
   /// 사용자가 바꾼 등교·하교(노선 id별). 없으면 시간대에 맞춰 자동으로 고른다.
   final Map<String, CommuteLeg> _legOverride = <String, CommuteLeg>{};
 
+  /// 지난 버스를 모두 펼친 시간표(화면·방향별).
+  final Set<String> _expandedPast = <String>{};
+
   @override
   void initState() {
     super.initState();
@@ -241,6 +244,14 @@ class _TransitTabState extends State<TransitTab>
       widget.school,
       now,
     );
+    // 오늘 다닐 차가 남았으면 오늘 시간표(지난 버스는 바로 앞 한 대만, 나머지는 접음), 아니면
+    // 다음 운행일의 시간표(목업: 지난 버스 하나 → 다음 버스 순서).
+    final bool live = board.next != null;
+    final List<Trip> rows = live ? board.trips : board.nextServiceTrips;
+    final int pastCount = live ? board.nextIndex! : 0;
+    final String foldKey = '$key-${direction.id}';
+    final bool expanded = _expandedPast.contains(foldKey);
+    final int firstShown = pastCount > 1 && !expanded ? pastCount - 1 : 0;
     final TextTheme text = Theme.of(context).textTheme;
     return ListView(
       key: PageStorageKey<String>(key),
@@ -287,16 +298,16 @@ class _TransitTabState extends State<TransitTab>
             runSpacing: 6,
             children: <Widget>[
               Text(
-                board.runsToday || board.nextService == null
+                live || board.nextService == null
                     ? '오늘 시간표'
-                    : '${mediumDate(board.nextService!.day)} 시간표',
+                    : '${_dayWord(board.nextService!.day, now)} 시간표',
                 style: text.titleSmall?.copyWith(color: AppColors.sub),
               ),
               if (service.dayLabel != null) _AssistChip(service.dayLabel!),
             ],
           ),
         ),
-        if (board.trips.isEmpty)
+        if (rows.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: Text('보여 줄 시간표가 없어요', style: text.bodyMedium),
@@ -305,10 +316,36 @@ class _TransitTabState extends State<TransitTab>
           ColoredBox(
             color: Colors.white,
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                for (int i = 0; i < board.trips.length; i++) ...<Widget>[
-                  if (i > 0) const Divider(),
-                  _TripRow(board: board, index: i, direction: direction),
+                if (pastCount > 1)
+                  TextButton.icon(
+                    onPressed: () => setState(() {
+                      if (!_expandedPast.remove(foldKey)) {
+                        _expandedPast.add(foldKey);
+                      }
+                    }),
+                    icon: Icon(
+                      expanded ? Icons.expand_less : Icons.expand_more,
+                    ),
+                    label: Text(
+                      expanded ? '지난 버스 접기' : '지난 버스 ${pastCount - 1}대 보기',
+                    ),
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(48, 48),
+                      foregroundColor: AppColors.sub,
+                    ),
+                  ),
+                for (int i = firstShown; i < rows.length; i++) ...<Widget>[
+                  if (i > firstShown || pastCount > 1) const Divider(),
+                  _TripRow(
+                    trip: rows[i],
+                    direction: direction,
+                    past: live && i < board.nextIndex!,
+                    next: live && i == board.nextIndex,
+                    following: live && i == board.nextIndex! + 1,
+                    minutes: live ? board.minutesUntil(rows[i]) : null,
+                  ),
                 ],
               ],
             ),
@@ -497,7 +534,8 @@ class _NextBusCard extends StatelessWidget {
           runSpacing: 4,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: <Widget>[
-            LineBadge(next.line, strong: _isMainLine(next.line)),
+            // 카드 바탕이 옅은 대표색이라 배지는 늘 진하게
+            LineBadge(next.line),
             Text(
               '다음 버스 · ${direction.from} 출발',
               style: text.titleSmall?.copyWith(color: ink),
@@ -666,30 +704,31 @@ class _AssistChip extends StatelessWidget {
 /// 시간표 한 줄: 지난 버스는 흐리게, 다음 버스는 강조, 남은 시간 배지.
 class _TripRow extends StatelessWidget {
   const _TripRow({
-    required this.board,
-    required this.index,
+    required this.trip,
     required this.direction,
+    required this.past,
+    required this.next,
+    required this.following,
+    required this.minutes,
   });
 
-  final DirectionBoard board;
-  final int index;
+  final Trip trip;
   final Direction direction;
+  final bool past;
+  final bool next;
+  final bool following;
+
+  /// 오늘 출발까지 남은 분. 오늘 시간표가 아니면 null.
+  final int? minutes;
 
   @override
   Widget build(BuildContext context) {
     final TextTheme text = Theme.of(context).textTheme;
-    final Trip trip = board.trips[index];
-    final bool past = board.isPast(index);
-    final bool next = board.runsToday && index == board.nextIndex;
-    final bool following =
-        board.runsToday &&
-        board.nextIndex != null &&
-        index == board.nextIndex! + 1;
+    final int? minutes = this.minutes;
     Widget? trailing;
     if (past) {
       trailing = Text('지남', style: text.bodyMedium);
-    } else if (next) {
-      final int minutes = board.minutesUntil(trip);
+    } else if (next && minutes != null) {
       trailing = Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: const ShapeDecoration(
@@ -705,11 +744,8 @@ class _TripRow extends StatelessWidget {
           ),
         ),
       );
-    } else if (following) {
-      trailing = Text(
-        '${formatDuration(board.minutesUntil(trip))} 후',
-        style: text.bodyMedium,
-      );
+    } else if (following && minutes != null) {
+      trailing = Text('${formatDuration(minutes)} 후', style: text.bodyMedium);
     }
     final String arrive = trip.arrive == null
         ? '${direction.to} 도착 시각 안내 없음'

@@ -387,6 +387,7 @@ class DirectionBoard {
     required this.trips,
     required this.nextIndex,
     required this.nextService,
+    this.nextServiceTrips = const <Trip>[],
   });
 
   final DateTime now;
@@ -402,6 +403,9 @@ class DirectionBoard {
 
   /// 오늘 다닐 차가 없을 때(다니지 않는 날, 막차 뒤) 다음 운행일의 첫 차. 기간 안에 없으면 null.
   final NextService? nextService;
+
+  /// [nextService] 날의 시간표.
+  final List<Trip> nextServiceTrips;
 
   bool get runsToday => offReason == null;
 
@@ -452,23 +456,29 @@ DirectionBoard directionBoard(
   final List<Trip> todays = tripsOn(today);
   if (todays.isEmpty) {
     final NextService? next = nextFrom(addDays(today, 1));
+    final List<Trip> nextTrips = next == null
+        ? const <Trip>[]
+        : tripsOn(next.day);
     return DirectionBoard(
       now: now,
       offReason:
           calendar.offReason(today, school) ?? OffReason.weekend, // 그 요일 차가 없음
-      trips: next == null ? const <Trip>[] : tripsOn(next.day),
+      trips: nextTrips,
       nextIndex: null,
       nextService: next,
+      nextServiceTrips: nextTrips,
     );
   }
   final int minute = minuteOfDay(now);
   final int index = todays.indexWhere((Trip t) => t.depart >= minute);
+  final NextService? next = index < 0 ? nextFrom(addDays(today, 1)) : null;
   return DirectionBoard(
     now: now,
     offReason: null,
     trips: todays,
     nextIndex: index < 0 ? null : index,
-    nextService: index < 0 ? nextFrom(addDays(today, 1)) : null,
+    nextService: next,
+    nextServiceTrips: next == null ? const <Trip>[] : tripsOn(next.day),
   );
 }
 

@@ -50,7 +50,15 @@ void main() {
     expect(find.text('15분 후'), findsOneWidget); // 시간표의 다음 버스 배지
     expect(find.text('38분 후'), findsOneWidget);
     expect(find.text('평일만 운행'), findsOneWidget);
-    expect(find.text('지남'), findsWidgets);
+    // 지난 버스는 바로 앞 한 대(12:55 700 순환)만 보이고 나머지는 접혀 있다(목업).
+    expect(find.text('지남'), findsOneWidget);
+    expect(find.text('12:55'), findsOneWidget);
+    expect(find.text('08:42'), findsNothing);
+    await tester.tap(find.text('지난 버스 11대 보기'));
+    await tester.pump();
+    expect(find.text('08:42'), findsOneWidget);
+    expect(find.text('지남'), findsNWidgets(12));
+    expect(find.text('지난 버스 접기'), findsOneWidget);
   });
 
   testWidgets('남은 시간은 1분마다 갱신된다', (WidgetTester tester) async {
@@ -86,6 +94,9 @@ void main() {
     await tester.pump(const Duration(minutes: 1));
     expect(find.text('오늘 운행이 끝났어요'), findsOneWidget);
     expect(find.text('내일'), findsOneWidget);
+    // 막차 뒤에는 다음 운행일 시간표(지난 버스 표시 없음)
+    expect(find.text('내일 시간표'), findsOneWidget);
+    expect(find.text('지남'), findsNothing);
   });
 
   testWidgets('통학버스: 시간대에 맞춰 하교가 골라지고 바꿀 수 있다', (WidgetTester tester) async {
