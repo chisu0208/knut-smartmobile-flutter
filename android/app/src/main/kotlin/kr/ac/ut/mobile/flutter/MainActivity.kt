@@ -75,7 +75,7 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        launchPushUrl = intent?.getStringExtra("push_url")?.takeIf { !it.equals("", ignoreCase = true) }
+        launchPushUrl = pushUrlOf(intent)
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         nfcPendingIntent = PendingIntent.getActivity(
             this,
@@ -88,6 +88,19 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
         val manager = BeaconManager.getInstanceForApplication(this)
         manager.beaconParsers.add(BeaconParser().setBeaconLayout("m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24"))
         beaconManager = manager
+    }
+
+    /**
+     * 인텐트의 `push_url`. 기기 등록이 이 주소로 기기 토큰을 보내고 응답을 명령으로 실행한다.
+     *
+     * 원본은 푸시 알림이 넣은 값이라 확인하지 않았다. 이 화면은 다른 앱도 열 수 있어서, 아무 앱이나
+     * 넣은 주소로 기기 토큰이 나갔다. 개선판에는 푸시가 없으므로 학교 서버 주소(https
+     * `mobile.ut.ac.kr`)만 받고, 아니면 기본 기기 등록 주소를 쓴다.
+     */
+    private fun pushUrlOf(intent: Intent?): String? {
+        val url = intent?.getStringExtra("push_url")?.takeIf { it.isNotEmpty() } ?: return null
+        val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return null
+        return url.takeIf { uri.scheme == "https" && uri.host?.lowercase() == "mobile.ut.ac.kr" }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -460,7 +473,7 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
             return
         }
         // 원본에서는 IntroActivity가 새로 떠서 기기 등록을 다시 한 뒤 MainActivity로 넘긴다.
-        val pushUrl = intent.getStringExtra("push_url")?.takeIf { !it.equals("", ignoreCase = true) }
+        val pushUrl = pushUrlOf(intent)
         if (pushUrl != null || intent.action == NfcAdapter.ACTION_NDEF_DISCOVERED) {
             invokeDart("relaunchIntro", pushUrl)
         }

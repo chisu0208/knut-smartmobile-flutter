@@ -100,7 +100,7 @@ class WebViewBridge(private val activity: MainActivity) {
                 s.setSupportMultipleWindows(false)
                 webView.scrollBarStyle = View.SCROLLBARS_OUTSIDE_OVERLAY
                 webView.isScrollbarFadingEnabled = true
-                webView.addJavascriptInterface(AllytteJs(), "allytteAndroid")
+                webView.addJavascriptInterface(AllytteJs(webView), "allytteAndroid")
                 // 원본 메인 웹뷰는 내려받지 않는다. 이동이 내려받기로 끝났다는 것만 알린다.
                 webView.setDownloadListener { url, _, _, _, _ -> event(id, "download", url) }
             }
@@ -110,7 +110,7 @@ class WebViewBridge(private val activity: MainActivity) {
                 s.databaseEnabled = true
                 s.javaScriptCanOpenWindowsAutomatically = true
                 s.setSupportMultipleWindows(true)
-                webView.addJavascriptInterface(AllytteJs(), "allytteAndroid")
+                webView.addJavascriptInterface(AllytteJs(webView), "allytteAndroid")
                 webView.setDownloadListener(downloadListener(id))
             }
             "tab" -> {
@@ -126,12 +126,14 @@ class WebViewBridge(private val activity: MainActivity) {
                 s.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                 s.javaScriptCanOpenWindowsAutomatically = true
                 s.setSupportMultipleWindows(true)
-                s.allowFileAccess = true
-                s.allowContentAccess = true
+                // 원본은 자식·손자 창에서 파일 접근 네 가지를 모두 켰다. 이 창들은 웹 페이지만 열므로
+                // 개선판은 모두 끈다.
+                s.allowFileAccess = false
+                s.allowContentAccess = false
                 @Suppress("DEPRECATION")
-                s.allowFileAccessFromFileURLs = true
+                s.allowFileAccessFromFileURLs = false
                 @Suppress("DEPRECATION")
-                s.allowUniversalAccessFromFileURLs = true
+                s.allowUniversalAccessFromFileURLs = false
                 webView.setDownloadListener(downloadListener(id))
             }
         }
@@ -187,19 +189,31 @@ class WebViewBridge(private val activity: MainActivity) {
         webView(id)?.loadUrl("javascript:$script")
     }
 
-    /** 원본 클래스 `h`/`m`: 웹 페이지가 부르는 `allytteAndroid` 객체. */
-    inner class AllytteJs {
+    /**
+     * 원본 클래스 `h`/`m`: 웹 페이지가 부르는 `allytteAndroid` 객체.
+     *
+     * 개선판: 원본은 팝업이 공지 속 외부 사이트로 옮겨 가도 그 페이지의 명령을 받아, 외부 페이지가
+     * 기기 토큰을 아무 주소로 보내게 하거나 홈을 바꿀 수 있었다. 지금 페이지가 학교 주소일 때만
+     * 받는다([isSchoolPage]). 호출 방식은 그대로라 서버 페이지는 바꿀 필요가 없다.
+     */
+    inner class AllytteJs(private val webView: WebView) {
         @JavascriptInterface
         fun addressSave(phone: String) {
-            val intent = Intent(Intent.ACTION_INSERT)
-            intent.type = "vnd.android.cursor.dir/raw_contact"
-            intent.putExtra("phone", phone).putExtra("phone_type", 3)
-            runCatching { activity.startActivity(intent) }
+            // WebView 주소는 UI 스레드에서만 읽을 수 있다.
+            activity.runOnUiThread {
+                if (!isSchoolPage(webView.url)) return@runOnUiThread
+                val intent = Intent(Intent.ACTION_INSERT)
+                intent.type = "vnd.android.cursor.dir/raw_contact"
+                intent.putExtra("phone", phone).putExtra("phone_type", 3)
+                runCatching { activity.startActivity(intent) }
+            }
         }
 
         @JavascriptInterface
         fun allytteCommandHandler(json: String?) {
-            activity.runOnUiThread { activity.invokeDart("jsCommand", json) }
+            activity.runOnUiThread {
+                if (isSchoolPage(webView.url)) activity.invokeDart("jsCommand", json)
+            }
         }
     }
 
@@ -215,15 +229,18 @@ class WebViewBridge(private val activity: MainActivity) {
     private fun overrideUrl(kind: String, url: String): Boolean {
         if (kind == "popup" || kind == "tab") {
             if (url.startsWith("intent://")) {
+                // 개선판: 원본은 파싱한 인텐트를 그대로 실행해서, 페이지가 이 앱의 MainActivity(push_url)나
+                // 다른 앱의 내보내지 않은 화면을 가리킬 수 있었고 그때 예외로 종료됐다.
                 try {
-                    val intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
+                    val intent = sanitizeBrowsable(Intent.parseUri(url, Intent.URI_INTENT_SCHEME))
                     try {
                         activity.startActivity(intent)
                     } catch (_: ActivityNotFoundException) {
                         val pkg = intent.getPackage()
                         if (pkg != null && pkg != "") {
-                            startQuietly(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg")))
+                            startQuietly(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=${Uri.encode(pkg)}")))
                         }
+                    } catch (_: Exception) {
                     }
                 } catch (_: URISyntaxException) {
                 }
@@ -544,6 +561,31 @@ class WebViewBridge(private val activity: MainActivity) {
               }
             })();
         """.trimIndent()
+
+        /** 학교 페이지(`ut.ac.kr`과 그 하위 주소)인지. 브리지 명령은 이 페이지에서만 받는다. */
+        fun isSchoolPage(url: String?): Boolean {
+            val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return false
+            if (uri.scheme != "https" && uri.scheme != "http") return false
+            val host = uri.host?.lowercase() ?: return false
+            return host == "ut.ac.kr" || host.endsWith(".ut.ac.kr")
+        }
+
+        /**
+         * 페이지가 준 `intent://`를 브라우저처럼 정리한다. 이 앱의 내부 화면이나 다른 앱의 특정
+         * 화면을 직접 가리키지 못하게 하고, 파일 접근 권한을 넘기는 플래그도 뺀다.
+         */
+        fun sanitizeBrowsable(intent: Intent): Intent {
+            intent.addCategory(Intent.CATEGORY_BROWSABLE)
+            intent.component = null
+            intent.selector = null
+            intent.flags = intent.flags and (
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+                ).inv()
+            return intent
+        }
 
         /** Java `String.split(regex)`처럼 끝의 빈 문자열을 버린다. */
         fun javaSplit(value: String, delimiter: String): List<String> {
