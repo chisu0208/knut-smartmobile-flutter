@@ -467,6 +467,8 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
             } catch (_: RemoteException) {
             }
             manager.unbind(this)
+            // 앱에 하나뿐인 BeaconManager가 이 화면의 알림을 계속 들고 있지 않게 한다.
+            manager.removeAllRangeNotifiers()
         }
         beacons.clear()
         return found
@@ -550,5 +552,6 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
     override fun onDestroy() {
         super.onDestroy()
         beaconManager?.unbind(this)
+        beaconManager?.removeAllRangeNotifiers()
     }
 }
