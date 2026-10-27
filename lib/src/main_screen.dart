@@ -107,8 +107,7 @@ class _MainScreenState extends State<MainScreen>
   // ---- 팝업 ----
   bool _bgVisible = false; // popup_bg_container
   Alignment _bgGravity = Alignment.topRight; // XML gravity="right"
-  int? _popupWidthPx; // null = match_parent
-  int? _popupHeightPx; // null = match_parent, -2 = wrap_content
+  String? _popupSizeAlign; // 팝업 크기를 정한 정렬(null = 꽉). 크기는 그릴 때 계산(6-12)
   late final AnimTrack _bgTrack = AnimTrack(_animationListener);
   late final AnimTrack _bodyTrack = AnimTrack(_animationListener);
   late final Ticker _ticker = createTicker(_onTick);
@@ -177,20 +176,28 @@ class _MainScreenState extends State<MainScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_screenWidthPx != 0) return;
-    final MediaQueryData mq = MediaQuery.of(context);
-    _dpr = mq.devicePixelRatio;
-    // Display.getSize: 상태 표시줄과 내비게이션 바를 뺀 앱 영역
-    _screenWidthPx = (mq.size.width * _dpr).round();
-    _screenHeightPx =
-        ((mq.size.height - mq.viewPadding.top - mq.viewPadding.bottom) * _dpr)
-            .round();
-    // V0(): 화면 높이(dp)가 750 이상이면 메뉴 칸을 작게
+    final bool first = _screenWidthPx == 0;
+    _measureScreen();
+    if (!first) return;
+    // V0(): 화면 높이(dp)가 750 이상이면 메뉴 칸을 작게. 만든 버튼에 쓰이므로 처음 한 번만 정한다.
     if ((_screenHeightPx / _dpr).truncate() >= 750) {
       _menuBoxPx = 80;
       _footerBoxPx = 90;
     }
     _onCreate();
+  }
+
+  /// `Display.getSize`: 상태 표시줄과 내비게이션 바를 뺀 앱 영역(px).
+  ///
+  /// 원본은 처음 한 번만 쟀다. 개선판은 분할 화면·창 크기·방향이 바뀌면 다시 재서, 열려 있는
+  /// 팝업(화면의 80% 규칙)과 대화상자 폭을 새 크기에 맞춘다(통합본 6-12).
+  void _measureScreen() {
+    _dpr = MediaQuery.devicePixelRatioOf(context);
+    final Size size = MediaQuery.sizeOf(context);
+    final EdgeInsets padding = MediaQuery.viewPaddingOf(context);
+    _screenWidthPx = (size.width * _dpr).round();
+    _screenHeightPx = ((size.height - padding.top - padding.bottom) * _dpr)
+        .round();
   }
 
   /// `onCreate()`
@@ -632,51 +639,39 @@ class _MainScreenState extends State<MainScreen>
           ? config.getString('footer')
           : 'null';
       _popupAlign = align;
-      final int w80 = (_screenWidthPx * 0.8).truncate();
-      final int h80 = (_screenHeightPx * 0.8).truncate();
+      // 알 수 없는 정렬이면 원본처럼 이전 팝업 크기를 그대로 쓴다.
+      if (popupSizePx(align, 0, 0) != null) _popupSizeAlign = align;
       switch (align) {
         case 'left':
           _bgGravity = Alignment.topLeft;
-          _popupWidthPx = w80;
-          _popupHeightPx = null;
           if (!_popupShown) {
             _bgVisible = true;
             _startAnimation(_bgTrack, LegacyAnim.inLeft);
           }
         case 'right':
           _bgGravity = Alignment.topRight;
-          _popupWidthPx = w80;
-          _popupHeightPx = null;
           if (!_popupShown) {
             _bgVisible = true;
             _startAnimation(_bodyTrack, LegacyAnim.inRight);
           }
         case 'center':
           _bgGravity = Alignment.center;
-          _popupWidthPx = w80;
-          _popupHeightPx = h80;
           _popupShown = true;
           _bgTrack.clear();
           _bgVisible = true;
         case 'full':
           _bgGravity = Alignment.center;
-          _popupWidthPx = null;
-          _popupHeightPx = null;
           _popupShown = true;
           _bgTrack.clear();
           _bgVisible = true;
         case 'top':
           _bgGravity = Alignment.topCenter;
-          _popupWidthPx = null;
-          _popupHeightPx = h80;
           if (!_popupShown) {
             _bgVisible = true;
             _startAnimation(_bodyTrack, LegacyAnim.inTop);
           }
         case 'bottom':
           _bgGravity = Alignment.bottomCenter;
-          _popupWidthPx = null;
-          _popupHeightPx = h80;
           if (!_popupShown) {
             _bgVisible = true;
             _startAnimation(_bodyTrack, LegacyAnim.inBottom);
@@ -1562,12 +1557,14 @@ class _MainScreenState extends State<MainScreen>
 
   /// `popup_bg_container`
   Widget _popupLayer(Size parent) {
-    final double width = _popupWidthPx == null
-        ? parent.width
-        : _popupWidthPx! / _dpr;
-    final double height = _popupHeightPx == null
-        ? parent.height
-        : _popupHeightPx! / _dpr;
+    final String? align = _popupSizeAlign;
+    final PopupSizePx? size = align == null
+        ? null
+        : popupSizePx(align, _screenWidthPx, _screenHeightPx);
+    final int? widthPx = size?.width;
+    final int? heightPx = size?.height;
+    final double width = widthPx == null ? parent.width : widthPx / _dpr;
+    final double height = heightPx == null ? parent.height : heightPx / _dpr;
     final Size self = Size(width, height);
     return SizedBox.expand(
       child: Transform.translate(
