@@ -105,7 +105,9 @@ class _MainScreenState extends State<MainScreen>
   final _MenuSlot _right = _MenuSlot();
   bool _footerVisible = true; // main_footer + line_footer
   final GradientBox _footerBox = GradientBox(color: _white); // f7742z0
-  List<_MenuButton>? _footerItems; // null이면 레이아웃의 "*" 버튼
+  // 서버 푸터 설정이 다 적용되기 전(null)에는 푸터를 그리지 않는다. 원본은 이때 레이아웃의 "*" 버튼과
+  // 회색 구분선이 잠깐 보였다.
+  List<_MenuButton>? _footerItems;
 
   // ---- 팝업 ----
   Alignment _bgGravity = Alignment.topRight; // XML gravity="right"
@@ -472,7 +474,8 @@ class _MainScreenState extends State<MainScreen>
   /// 종료 안내가 나온다.
   Future<void> _h0(JObj footer) async {
     try {
-      _footerItems = <_MenuButton>[];
+      // 버튼 그림을 다 받은 뒤에 한꺼번에 바꾼다. 받는 동안 빈 푸터가 그려지지 않는다.
+      final List<_MenuButton> items = <_MenuButton>[];
       final String bgImage = footer.getString('bgImage');
       final String bgColor = footer.getString('bgColor');
       final String border = footer.getString('border');
@@ -481,11 +484,12 @@ class _MainScreenState extends State<MainScreen>
       await _g1(_footerBox, bgImage);
       _applyStroke(_footerBox, border);
       for (int i = 0; i < menu.length; i++) {
-        _footerItems!.add(
+        items.add(
           await _e0('main', menu.getJSONObject(i))
             ..boxPx = _footerBoxPx,
         );
       }
+      _footerItems = items;
     } catch (_) {}
   }
 
@@ -1458,13 +1462,13 @@ class _MainScreenState extends State<MainScreen>
             child: _ready && _main != null ? _withNotice(_main!) : null,
           ),
         ),
-        if (_footerVisible) ...<Widget>[
+        if (_footerVisible && _footerItems != null) ...<Widget>[
           const Material(
             color: Color(0xFFDDDDDD),
             elevation: 1,
             child: SizedBox(height: 1),
           ),
-          _mainFooter(),
+          _mainFooter(_footerItems!),
         ],
       ],
     );
@@ -1518,19 +1522,15 @@ class _MainScreenState extends State<MainScreen>
     );
   }
 
-  /// `main_footer`: 처음에는 레이아웃의 "*" 버튼(AppCompat 기본 버튼).
-  Widget _mainFooter() {
-    final List<_MenuButton>? items = _footerItems;
+  /// `main_footer`. 원본은 서버 설정이 오기 전에 레이아웃의 "*" 버튼(AppCompat 기본 버튼)을
+  /// 보였다. 개선판은 설정이 적용된 뒤에만 그린다.
+  Widget _mainFooter(List<_MenuButton> items) {
     return BarTextScale(
       maxScaleFactor: BarTextScale.bar,
       child: BoxBackground(
         box: _footerBox,
         height: 50,
-        child: Row(
-          children: items == null
-              ? const <Widget>[LegacyButton(text: '*')]
-              : items.map(_slotButton).toList(),
-        ),
+        child: Row(children: items.map(_slotButton).toList()),
       ),
     );
   }
