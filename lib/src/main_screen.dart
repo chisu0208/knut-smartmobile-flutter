@@ -10,7 +10,6 @@ import 'android_color.dart';
 import 'app_colors.dart';
 import 'connection_notice.dart';
 import 'device_prefs.dart';
-import 'home_layout.dart';
 import 'intro_screen.dart';
 import 'legacy_json.dart';
 import 'legacy_widgets.dart';
@@ -18,8 +17,6 @@ import 'native_bridge.dart';
 import 'popup_animation.dart';
 import 'popup_state.dart';
 import 'qr_scan_screen.dart';
-import 'shell_link.dart';
-import 'tab_route.dart';
 import 'uuid.dart';
 import 'web_entry.dart';
 
@@ -28,17 +25,11 @@ const Color _black = Color(0xFF000000);
 const Color _transparent = Color(0x00000000);
 
 /// 원본 `MainActivity`. 메서드 이름 옆 주석은 원본(jadx) 이름이다.
-///
-/// 개선판 2차부터 하단 탭(`app_shell.dart`)의 홈 탭이다. 원본 하단 바(서버 `footer`)는 홈 탭 위쪽
-/// 막대로 옮겼고, 뒤로 키는 탭 막대가 받아 넘긴다([TabContext.back]).
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key, required this.screenInfo, this.tab});
+  const MainScreen({super.key, required this.screenInfo});
 
   /// IntroActivity가 넘긴 기기 등록 응답(`screen_info`).
   final String? screenInfo;
-
-  /// 탭 막대와의 연결. 없으면(시험용) 탭 기능 없이 원래대로 동작한다.
-  final TabContext? tab;
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -114,14 +105,7 @@ class _MainScreenState extends State<MainScreen>
   final _MenuSlot _right = _MenuSlot();
   bool _footerVisible = true; // main_footer + line_footer
   final GradientBox _footerBox = GradientBox(color: _white); // f7742z0
-  List<_MenuButton>? _footerItems; // null이면 위쪽 막대를 숨김(개선판 2차)
-
-  /// 위쪽 막대(서버 footer)의 로그인 버튼 명령(`isLoginButton`). 출결·도서관 탭의 "로그인" 버튼이
-  /// 같은 명령을 실행한다. 로그인 버튼이 없으면(로그인한 뒤의 로그아웃 버튼 등) null.
-  String? _loginCommand;
-
-  /// 출결·도서관 탭의 서비스 주소 요청(`tab_route.dart`).
-  final ServiceRequests _serviceRequests = ServiceRequests();
+  List<_MenuButton>? _footerItems; // null이면 레이아웃의 "*" 버튼
 
   // ---- 팝업 ----
   Alignment _bgGravity = Alignment.topRight; // XML gravity="right"
@@ -160,12 +144,11 @@ class _MainScreenState extends State<MainScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    NativeBridge.on('jsCommand', (MethodCall call) async {
-      final String? json = call.arguments as String?;
-      // 출결·도서관 탭이 요청한 서비스 주소의 표시와 응답은 여기서 가로챈다(개선판 2차).
-      if (_serviceRequests.handle(json)) return;
-      await _enqueue(json, fromBridge: true);
-    });
+    NativeBridge.on(
+      'jsCommand',
+      (MethodCall call) async =>
+          _enqueue(call.arguments as String?, fromBridge: true),
+    );
     NativeBridge.on('createWindow', (MethodCall call) async {
       final Map<Object?, Object?> args =
           call.arguments as Map<Object?, Object?>;
@@ -192,15 +175,6 @@ class _MainScreenState extends State<MainScreen>
       'relaunchIntro',
       (MethodCall call) async => _relaunchIntro(call.arguments as String?),
     );
-    widget.tab?.home.attach(
-      requestService: _requestService,
-      hasLogin: () => _loginCommand != null,
-      login: _login,
-    );
-    widget.tab?.back.onBack = () async {
-      _onBackPressed();
-      return true;
-    };
   }
 
   @override
@@ -264,8 +238,6 @@ class _MainScreenState extends State<MainScreen>
     ]) {
       NativeBridge.off(m);
     }
-    widget.tab?.home.detach();
-    widget.tab?.back.onBack = null;
     WidgetsBinding.instance.removeObserver(this);
     _ticker.dispose();
     super.dispose();
@@ -310,17 +282,7 @@ class _MainScreenState extends State<MainScreen>
   ///
   /// 원본에서 `runOnUiThread`로 넘기는 작업(메인·팝업 구성, 팝업 닫기, NFC 확인)은 UI 스레드에서
   /// 불리면 바로 실행되고, JavaBridge 스레드에서 불리면 x0이 끝난 뒤 실행된다.
-  ///
-  /// 개선판 2차: 출결·도서관 주소를 여는 명령(`tabRouteOf`)은 처리하지 않고 그 탭에 넘긴다. 전자출결이
-  /// 외부 브라우저로 열리던 것(통합본 4-9)과 도서관 full 팝업이 탭 안으로 들어온다. 원본에서 이 명령은
-  /// 열려 있던 팝업을 닫았으므로(`browser`는 A0, 새 팝업은 Z0으로 교체) 여기서도 팝업을 닫는다.
   Future<void> _x0(String? json, {required bool fromBridge}) async {
-    final TabRoute? route = widget.tab == null ? null : tabRouteOf(json);
-    if (route != null) {
-      if (_popupState.drawn) await _a0((Future<void> Function() op) => op());
-      widget.tab!.host.openTabRoute(route);
-      return;
-    }
     final List<Future<void> Function()> posted = <Future<void> Function()>[];
     Future<void> runOnUi(Future<void> Function() op) async {
       if (fromBridge) {
@@ -351,7 +313,6 @@ class _MainScreenState extends State<MainScreen>
         final JObj action = actions.getJSONObject(i);
         switch (action.getString('command')) {
           case 'webview':
-            _showHome();
             switch (action.getJSONObject('config').getString('show')) {
               case 'main':
                 await runOnUi(() => _configureMain(action)); // M0
@@ -363,20 +324,16 @@ class _MainScreenState extends State<MainScreen>
                 _b0(action.getJSONObject('config').getString('url'));
             }
           case 'alert':
-            _showHome();
             _c0(action);
           case 'dialog':
-            _showHome();
             await _g0(action);
           case 'function':
             switch (action.getJSONObject('config').getString('function')) {
               case 'qrcode':
-                _showHome();
                 _f1(action);
               case 'gps':
                 await _w0(action);
               case 'nfc':
-                _showHome();
                 await _h1(action, runOnUi);
               case 'beacone':
                 _e1(action);
@@ -409,42 +366,6 @@ class _MainScreenState extends State<MainScreen>
     _refresh();
   }
 
-  /// 홈 탭 쪽 화면(팝업, alert·dialog, 메인 구성, QR, NFC 대기)을 여는 명령: 다른 탭에 있으면 홈
-  /// 탭으로 옮긴다(개선판 2차).
-  void _showHome() => widget.tab?.host.showHome();
-
-  /// 출결·도서관 탭의 서비스 주소 요청: 홈 웹뷰에서 `AllytteCommand.callService("SERVICE", id)`를
-  /// 실행하고, 그 응답을 [ServiceRequests]가 가로챈다. 메인 페이지가 불러오는 중이면 끝날 때까지
-  /// (최대 10초) 기다린다.
-  Future<ServiceResult> _requestService(String serviceId) async {
-    for (int i = 0; i < 50; i++) {
-      final WebEntry? main = _main;
-      if (_ready && main != null && !main.busy && main.problem == null) break;
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-      if (!mounted) return const ServiceNoResponse(called: false);
-    }
-    final WebEntry? main = _main;
-    if (main == null) return const ServiceNoResponse(called: false);
-    final ({int id, Future<ServiceResult> result}) request = _serviceRequests
-        .start();
-    try {
-      await main.controller.runJavaScript(
-        ServiceRequests.script(request.id, serviceId),
-      );
-    } catch (_) {
-      _serviceRequests.cancel(request.id);
-    }
-    return request.result;
-  }
-
-  /// 출결·도서관 탭의 "로그인": 홈 위쪽 막대의 로그인 버튼과 같은 명령.
-  void _login() {
-    final String? command = _loginCommand;
-    if (command == null) return;
-    _showHome();
-    _enqueue(command, fromBridge: false);
-  }
-
   /// UI 스레드에서 x0을 다시 부르는 경우(버튼, POST 응답, `Q0`).
   Future<void> _x0Inline(String json) =>
       _dispatch(json, (Future<void> Function() op) => op());
@@ -473,7 +394,6 @@ class _MainScreenState extends State<MainScreen>
   // ======================================================================
 
   Future<void> _configureMain(JObj action) async {
-    widget.tab?.home.mainConfigured();
     _popupState.mainOwner = true;
     if (_popupState.shown) await _a0((Future<void> Function() op) => op());
     _popupState.cancelAnimation();
@@ -518,7 +438,6 @@ class _MainScreenState extends State<MainScreen>
       }
       if (config.isNull('footer')) {
         _footerVisible = false;
-        _loginCommand = null;
       } else {
         _footerVisible = true;
         await _h0(config.getJSONObject('footer'));
@@ -546,13 +465,12 @@ class _MainScreenState extends State<MainScreen>
   /// `N(context, dp)`: (int) dp 변환.
   int _dpToPx(int dp) => (dp * _dpr).truncate();
 
-  /// `H0(footer)`: 메인 푸터. 개선판 2차부터 홈 탭 위쪽 막대에 그린다.
+  /// `H0(footer)`: 메인 푸터.
   ///
   /// 원본은 여기서 뒤로가기 주인(`f7676E`)을 팝업 쪽으로 바꿔서, 푸터가 있는 메인에서 첫 뒤로
   /// 키가 보이는 변화 없이 그 값만 되돌렸다(HANDOFF 5.6). 개선판은 바꾸지 않아 첫 뒤로 키부터
   /// 종료 안내가 나온다.
   Future<void> _h0(JObj footer) async {
-    _loginCommand = null;
     try {
       _footerItems = <_MenuButton>[];
       final String bgImage = footer.getString('bgImage');
@@ -563,12 +481,8 @@ class _MainScreenState extends State<MainScreen>
       await _g1(_footerBox, bgImage);
       _applyStroke(_footerBox, border);
       for (int i = 0; i < menu.length; i++) {
-        final JObj item = menu.getJSONObject(i);
-        if (!item.isNull('action') && isLoginButton(item.toString())) {
-          _loginCommand = item.toString();
-        }
         _footerItems!.add(
-          await _e0('main', item)
+          await _e0('main', menu.getJSONObject(i))
             ..boxPx = _footerBoxPx,
         );
       }
@@ -1401,14 +1315,16 @@ class _MainScreenState extends State<MainScreen>
   /// 원본은 `onShowCustomView`를 처리하지 않고 화면도 세로 고정이라 동영상 전체 화면이 되지
   /// 않았다. 개선판은 웹뷰가 넘긴 전체 화면 뷰를 화면 전체에 띄우고, 그동안만 가로 회전과 시스템
   /// 바 숨기기를 허용한다.
-  ///
-  /// 개선판 2차: 전체 화면인 동안 탭 막대를 숨겨 영상이 탭 막대까지 덮는다.
   @override
   void show(Widget view, VoidCallback exit) {
     _customView = view;
     _exitCustomView = exit;
-    enterVideoFullscreen();
-    widget.tab?.host.setFullscreen(AppTab.home, true);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    SystemChrome.setPreferredOrientations(const <DeviceOrientation>[
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
     _refresh();
   }
 
@@ -1417,8 +1333,10 @@ class _MainScreenState extends State<MainScreen>
     if (_customView == null) return;
     _customView = null;
     _exitCustomView = null;
-    exitVideoFullscreen();
-    widget.tab?.host.setFullscreen(AppTab.home, false);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setPreferredOrientations(const <DeviceOrientation>[
+      DeviceOrientation.portraitUp,
+    ]);
     _refresh();
   }
 
@@ -1477,73 +1395,78 @@ class _MainScreenState extends State<MainScreen>
 
   @override
   Widget build(BuildContext context) {
-    final Widget screen = _screen();
-    // 탭 막대 안에서는 탭 막대가 뒤로 키를 받아 [TabContext.back]으로 넘긴다.
-    if (widget.tab != null) return screen;
     return PopScope<Object?>(
       canPop: false,
       onPopInvokedWithResult: (bool didPop, Object? _) {
         if (!didPop) _onBackPressed();
       },
-      child: screen,
-    );
-  }
-
-  Widget _screen() {
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark.copyWith(
-        statusBarColor: Colors.transparent,
-        systemNavigationBarColor: Colors.transparent,
-      ),
-      child: ColoredBox(
-        color: windowBackground,
-        child: Stack(
-          children: <Widget>[
-            SafeArea(
-              child: Padding(
-                // CoordinatorLayout layout_margin 1dp
-                padding: const EdgeInsets.all(1),
-                child: LayoutBuilder(
-                  builder: (BuildContext context, BoxConstraints constraints) =>
-                      Stack(
-                        children: <Widget>[
-                          _content(),
-                          // GONE인 동안에도 웹뷰는 붙어 있다(Android 뷰처럼).
-                          Positioned.fill(
-                            child: Offstage(
-                              offstage: !_popupState.drawn,
-                              child: _popupLayer(constraints.biggest),
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.dark.copyWith(
+          statusBarColor: Colors.transparent,
+          systemNavigationBarColor: Colors.transparent,
+        ),
+        child: ColoredBox(
+          color: windowBackground,
+          child: Stack(
+            children: <Widget>[
+              SafeArea(
+                child: Padding(
+                  // CoordinatorLayout layout_margin 1dp
+                  padding: const EdgeInsets.all(1),
+                  child: LayoutBuilder(
+                    builder:
+                        (BuildContext context, BoxConstraints constraints) =>
+                            Stack(
+                              children: <Widget>[
+                                _content(),
+                                // GONE인 동안에도 웹뷰는 붙어 있다(Android 뷰처럼).
+                                Positioned.fill(
+                                  child: Offstage(
+                                    offstage: !_popupState.drawn,
+                                    child: _popupLayer(constraints.biggest),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
-                      ),
+                  ),
                 ),
               ),
-            ),
-            if (_loading) const Positioned.fill(child: _LoadingLayer()),
-            if (_dialog != null) Positioned.fill(child: _dialogLayer(_dialog!)),
-            if (_customView != null)
-              Positioned.fill(
-                child: ColoredBox(color: _black, child: _customView),
-              ),
-          ],
+              if (_loading) const Positioned.fill(child: _LoadingLayer()),
+              if (_dialog != null)
+                Positioned.fill(child: _dialogLayer(_dialog!)),
+              if (_customView != null)
+                Positioned.fill(
+                  child: ColoredBox(color: _black, child: _customView),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  /// `content_main.xml`. 개선판 2차: 서버 하단 바는 맨 위 막대로, 회색 구분선은 없앰([HomeLayout]).
+  /// `content_main.xml`
   Widget _content() {
-    final List<_MenuButton>? items = _footerItems;
-    return HomeLayout(
-      topBar: _footerVisible && items != null && items.isNotEmpty
-          ? _topBar(items)
-          : null,
-      header: _headerVisible ? _mainHeader() : null,
-      body: ColoredBox(
-        color: _white,
-        child: _ready && _main != null ? _withNotice(_main!) : null,
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        if (_headerVisible) _mainHeader(),
+        const SizedBox(height: 1), // main_body layout_marginTop
+        Expanded(
+          child: ColoredBox(
+            color: _white,
+            child: _ready && _main != null ? _withNotice(_main!) : null,
+          ),
+        ),
+        if (_footerVisible) ...<Widget>[
+          const Material(
+            color: Color(0xFFDDDDDD),
+            elevation: 1,
+            child: SizedBox(height: 1),
+          ),
+          _mainFooter(),
+        ],
+      ],
     );
   }
 
@@ -1595,16 +1518,19 @@ class _MainScreenState extends State<MainScreen>
     );
   }
 
-  /// `main_footer` → 홈 위쪽 막대. 칸 전체가 누르는 곳이다(48dp 이상, 통합본 5-4).
-  Widget _topBar(List<_MenuButton> items) {
+  /// `main_footer`: 처음에는 레이아웃의 "*" 버튼(AppCompat 기본 버튼).
+  Widget _mainFooter() {
+    final List<_MenuButton>? items = _footerItems;
     return BarTextScale(
       maxScaleFactor: BarTextScale.bar,
-      child: HomeTopBar(
+      child: BoxBackground(
         box: _footerBox,
-        buttons: <HomeTopBarButton>[
-          for (final _MenuButton b in items)
-            HomeTopBarButton(onTap: b.onTap, child: _menuButton(b)),
-        ],
+        height: 50,
+        child: Row(
+          children: items == null
+              ? const <Widget>[LegacyButton(text: '*')]
+              : items.map(_slotButton).toList(),
+        ),
       ),
     );
   }

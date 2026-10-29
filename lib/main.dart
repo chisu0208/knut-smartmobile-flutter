@@ -2,22 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'src/app_colors.dart';
-import 'src/app_shell.dart';
-import 'src/app_theme.dart';
 import 'src/intro_screen.dart';
 import 'src/main_screen.dart';
 import 'src/native_bridge.dart';
-import 'src/shell_link.dart';
-import 'src/tab_route.dart';
-import 'src/web_tab.dart';
 
 /// 한국교통대학교 스마트모바일 1.1.3(Android)의 Flutter 개선판.
 ///
 /// 원본처럼 시작 화면(IntroActivity)에서 기기를 등록하고, 받은 화면 설정으로 메인 화면
 /// (MainActivity)을 띄운다. 화면 내용은 학교 웹 페이지다(HANDOFF.md). 원본·이식판과 달라진
 /// 동작은 IMPROVEMENTS.md에 있다.
-///
-/// 개선판 2차: 메인 화면은 하단 탭 5개(홈·출결·도서관·교통·학식, [AppShell])의 홈 탭이다.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations(<DeviceOrientation>[
@@ -66,15 +59,7 @@ class SmartMobileApp extends StatelessWidget {
             // 원본: MainActivity를 열고 IntroActivity는 끝낸다.
             Navigator.of(context).pushReplacement(
               PageRouteBuilder<void>(
-                pageBuilder: (_, _, _) => AppShell(
-                  home: (BuildContext context, TabContext tab) =>
-                      MainScreen(screenInfo: screenInfo, tab: tab),
-                  webTab: (
-                    BuildContext context,
-                    WebTabKind kind,
-                    TabContext tab,
-                  ) => WebTab(kind: kind, tab: tab),
-                ),
+                pageBuilder: (_, _, _) => MainScreen(screenInfo: screenInfo),
                 transitionDuration: Duration.zero,
               ),
             );

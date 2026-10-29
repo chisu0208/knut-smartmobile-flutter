@@ -52,9 +52,6 @@ import java.net.URLDecoder
  * - kind `popup`: 원본 `Z0()` + 클라이언트 `l`(크롬), `n`(링크), 다운로드 `j`
  * - kind `child`: `window.open`으로 열린 창(크롬 `f`, 클라이언트 `g`)
  * - kind `grandchild`: 그 창에서 다시 열린 창(크롬 `C0091f`)
- * - kind `tab`(개선판 2차): 출결·도서관 탭과 앱 안 웹 페이지(길찾기, 식단). 외부 사이트라
- *   `allytteAndroid` 통로를 붙이지 않는다(통합본 9-7). 링크 처리·내려받기·JS 알림·파일 선택은
- *   팝업과 같고, 새 창은 열지 않고 같은 웹뷰에서 연다.
  *
  * 페이지 시작·끝 이벤트는 플러그인 클라이언트를 거쳐 Dart로 그대로 전달된다. 개선판은 로딩 표시와
  * 연결 안내(통합본 3-31, 1-9, 6-10)를 위해 플러그인이 넘기지 않는 이벤트를 `webEvent`로 더 보낸다.
@@ -113,15 +110,6 @@ class WebViewBridge(private val activity: MainActivity) {
                 s.javaScriptCanOpenWindowsAutomatically = true
                 s.setSupportMultipleWindows(true)
                 webView.addJavascriptInterface(AllytteJs(webView), "allytteAndroid")
-                webView.setDownloadListener(downloadListener(id))
-            }
-            "tab" -> {
-                s.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-                @Suppress("DEPRECATION")
-                s.databaseEnabled = true
-                // target="_blank"·window.open은 새 창 없이 같은 웹뷰에서 연다.
-                s.javaScriptCanOpenWindowsAutomatically = false
-                s.setSupportMultipleWindows(false)
                 webView.setDownloadListener(downloadListener(id))
             }
             else -> {
@@ -229,7 +217,7 @@ class WebViewBridge(private val activity: MainActivity) {
 
     /** 원본 클라이언트 `i`(메인)와 `n`(팝업)의 `shouldOverrideUrlLoading`. */
     private fun overrideUrl(kind: String, url: String): Boolean {
-        if (kind == "popup" || kind == "tab") {
+        if (kind == "popup") {
             if (url.startsWith("intent://")) {
                 // 개선판: 원본은 파싱한 인텐트를 그대로 실행해서, 페이지가 이 앱의 MainActivity(push_url)나
                 // 다른 앱의 내보내지 않은 화면을 가리킬 수 있었고 그때 예외로 종료됐다.
@@ -258,7 +246,7 @@ class WebViewBridge(private val activity: MainActivity) {
                 return true
             }
         }
-        if (kind == "main" || kind == "popup" || kind == "tab") {
+        if (kind == "main" || kind == "popup") {
             if (url.startsWith("sms:")) {
                 startQuietly(Intent(Intent.ACTION_SENDTO, Uri.parse(url)))
                 return true
@@ -428,10 +416,8 @@ class WebViewBridge(private val activity: MainActivity) {
         private val inner: WebChromeClient,
     ) : WebChromeClientProxyApi.SecureWebChromeClient() {
         override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
-            // 메인·탭 웹뷰는 여러 창을 끄므로 불리지 않는다. 불리더라도 원본처럼 플러그인 클라이언트에 맡긴다.
-            if (kind == "main" || kind == "tab") {
-                return inner.onCreateWindow(view, isDialog, isUserGesture, resultMsg)
-            }
+            // 메인 웹뷰는 여러 창을 끄므로 불리지 않는다. 불리더라도 원본처럼 플러그인 클라이언트에 맡긴다.
+            if (kind == "main") return inner.onCreateWindow(view, isDialog, isUserGesture, resultMsg)
             // 손자 창(원본 C0091f)은 새 창을 만들지 않는다.
             if (kind == "grandchild") return false
             val token = nextToken++

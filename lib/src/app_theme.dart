@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
 
-/// 새 화면(탭 막대, 학식, 교통, 출결·도서관 탭 안내)의 Material 3 테마(개선판 2차).
+/// 새 화면용 Material 3 테마(개선판 2차). 2차의 탭 막대·학식·교통·출결·도서관 탭은 2026-10-29에
+/// 되돌려 지금 앱에서는 쓰지 않고, 새 화면을 다시 만들 때 쓴다.
 ///
 /// 색은 팀원 Figma 토큰([AppColors]), 글자는 시스템 글꼴이다. 크기·굵기는 Figma 기준
 /// (화면 제목 24 Black, 섹션 18 Bold, 카드 제목 15 Bold, 본문 13 Regular, 배지 11 Bold)을
 /// 따르고, 목록 한 줄(메뉴·시각)은 읽기 쉽게 15로 둔다. 글자는 휴대폰 글자 크기 설정을 따른다.
 ///
 /// 1차의 원본 모양 위젯(헤더·푸터 버튼, alert·dialog 대화상자)은 앱 테마(`SmartMobileApp.theme`,
-/// Material 2)를 그대로 써서 모양이 바뀌지 않는다. 홈 탭은 그 테마 아래에 있다.
+/// Material 2)를 그대로 써서 모양이 바뀌지 않는다.
 abstract final class AppTheme {
   static const TextTheme _text = TextTheme(
     headlineSmall: TextStyle(

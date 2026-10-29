@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
@@ -11,29 +10,11 @@ import 'connection_notice.dart';
 import 'native_bridge.dart';
 import 'page_load.dart';
 
-/// 동영상 전체 화면을 띄우고 걷는 쪽(홈 탭, 출결·도서관 탭, 앱 안 웹 페이지). [show]의 두 번째
-/// 인자를 부르면 웹뷰가 전체 화면을 끝내고 [hide]를 부른다.
+/// 동영상 전체 화면을 띄우고 걷는 쪽(메인 화면). [show]의 두 번째 인자를 부르면 웹뷰가 전체
+/// 화면을 끝내고 [hide]를 부른다.
 abstract interface class FullscreenHost {
   void show(Widget view, VoidCallback exit);
   void hide();
-}
-
-/// 동영상 전체 화면을 시작할 때: 시스템 바를 숨기고 가로 회전을 허용한다(통합본 6-11).
-void enterVideoFullscreen() {
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  SystemChrome.setPreferredOrientations(const <DeviceOrientation>[
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
-}
-
-/// 동영상 전체 화면이 끝날 때: 시스템 바를 다시 보이고 세로로 고정한다.
-void exitVideoFullscreen() {
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  SystemChrome.setPreferredOrientations(const <DeviceOrientation>[
-    DeviceOrientation.portraitUp,
-  ]);
 }
 
 /// 원본의 WebView 하나(메인, 팝업, `window.open`으로 열린 자식·손자).
@@ -84,8 +65,7 @@ class WebEntry {
   static final Map<int, WeakReference<WebEntry>> _byId =
       <int, WeakReference<WebEntry>>{};
 
-  /// `main`, `popup`, `child`, `grandchild`, `tab`(개선판 2차: 출결·도서관 탭과 앱 안 웹 페이지.
-  /// `allytteAndroid` 통로를 붙이지 않는다)
+  /// `main`, `popup`, `child`, `grandchild`
   final String kind;
   final WebViewController controller;
   late final PageLoad _load;

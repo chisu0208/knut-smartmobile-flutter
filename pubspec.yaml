@@ -62,10 +62,8 @@ flutter:
   uses-material-design: true
 
   # 원본 res/drawable-xhdpi에서 가져온 그림(로딩 표시, QR 화면)
-  # 학식·교통 탭의 앱 안 고정 데이터(개선판 2차, tool/make_data.py로 만듦)
   assets:
     - assets/images/
-    - assets/data/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
