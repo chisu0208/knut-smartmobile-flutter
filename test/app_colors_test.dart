@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:knut_smartmobile/main.dart' show SmartMobileApp;
 import 'package:knut_smartmobile/src/app_colors.dart';
-import 'package:knut_smartmobile/src/app_theme.dart';
 
 /// 대표색(개선판 2차: 팀원 Figma 토큰 primary #A3162B, 1차는 #76161B)은 Dart와 Android 리소스에
 /// 한 번씩 적혀 있다. 둘이 같아야 한다.
@@ -44,19 +43,6 @@ void main() {
 
   test('Flutter 테마의 강조색도 대표색', () {
     expect(SmartMobileApp.theme.colorScheme.primary, schoolColor);
-  });
-
-  test('새 화면의 Material 3 테마는 Figma 토큰을 쓴다', () {
-    final ThemeData theme = AppTheme.material3;
-    expect(theme.useMaterial3, isTrue);
-    expect(theme.colorScheme.primary, AppColors.primary);
-    expect(theme.colorScheme.onPrimary, Colors.white);
-    expect(theme.colorScheme.primaryContainer, AppColors.primarySoft);
-    expect(theme.colorScheme.onPrimaryContainer, AppColors.primaryDark);
-    expect(theme.colorScheme.onSurface, AppColors.ink);
-    expect(theme.scaffoldBackgroundColor, AppColors.bg);
-    // 1차의 원본 모양 위젯이 쓰는 앱 테마는 Material 2 그대로다.
-    expect(SmartMobileApp.theme.useMaterial3, isFalse);
   });
 
   test('흰 글자와 대표색의 명암비가 4.5:1 이상', () {

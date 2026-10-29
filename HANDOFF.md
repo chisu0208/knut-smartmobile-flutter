@@ -38,9 +38,9 @@
 
 > **개선판(2026-10-27)**
 >
-> - **2차 화면 되돌림**(2026-10-29, 로컬 세션, `main` `ea31d1b` 다음): 아래 2차의 탭·새 화면과 앱 안 고정 데이터를 뺐다. `flutter analyze` 문제 없음, 시험 86개 통과, `flutter build apk --debug` 성공. 아래 2차 줄의 확인 목록·데이터는 지금 앱에 해당 없다.
+> - **2차 화면 되돌림**(2026-10-29, 로컬 세션, `main` `ea31d1b` 다음): 아래 2차의 탭·새 화면과 앱 안 고정 데이터를 뺐다. `flutter analyze` 문제 없음, 시험 85개 통과, `flutter build apk --debug` 성공, 에뮬레이터로 홈·팝업·뒤로 키·전자출결(Chrome)·도서관·길찾기 확인([IMPROVEMENTS.md](IMPROVEMENTS.md) 12절). 아래 2차 줄의 확인 목록·데이터는 지금 앱에 해당 없다.
 > - **외부 리뷰 반영**(2026-10-27~28, `4450595`·`80b35af`·`2c15829`): 보안 4건(`push_url`은 학교 주소만, `intent://`를 브라우저처럼 정리, `allytteAndroid`는 학교 주소 페이지에서만 명령을 받음, 자식·손자 창 파일 접근 끔)과 작은 버그(팝업을 닫을 때 자식·손자 창도 닫기, `app` 명령, 위치 전송 주소의 `%`, 내려받기 파일명, 아이콘 받기 시간 제한, 네트워크 판정, 비콘 알림 정리, 종료 전 쿠키 저장). 에뮬레이터에서 재현·확인. [IMPROVEMENTS.md](IMPROVEMENTS.md) 11절
-> - **개선판 2차**(클라우드 세션, `main` `fb65d50`에서 새 브랜치): 하단 탭·학식·교통·출결·도서관 탭과 대표색. `flutter analyze` 문제 없음, 시험 140개 통과(1차 82 + 2차 58), `flutter build apk --debug` 성공(패키지·라벨·권한 1차와 같음). 데이터는 학교 홈페이지에서 2026-10-27에 가져온 앱 안 고정 데이터(`assets/data/`, 다시 만들기 `tool/make_data.py`). **에뮬레이터 확인 전**: [IMPROVEMENTS.md](IMPROVEMENTS.md) 9절 38~56번. 빠진 데이터(증평 이번 주 식단, 의왕 식단, 증평·의왕 길찾기 divisionId 등)는 10.7절
+> - **개선판 2차**(클라우드 세션, `main` `fb65d50`에서 새 브랜치): 하단 탭·학식·교통·출결·도서관 탭과 대표색. `flutter analyze` 문제 없음, 시험 140개 통과(1차 82 + 2차 58), `flutter build apk --debug` 성공(패키지·라벨·권한 1차와 같음). 데이터는 학교 홈페이지에서 2026-10-27에 가져온 앱 안 고정 데이터(`assets/data/`, 다시 만들기 `tool/make_data.py`). 에뮬레이터 확인 목록(9절 38~56번)은 되돌리면서 지웠다(12절). 빠진 데이터(증평 이번 주 식단, 의왕 식단, 증평·의왕 길찾기 divisionId 등)는 10.7절
 > - **PR #6(개선판 1차) merge**: `main` = `ab2ca43`.
 > - **로컬 에뮬레이터 확인**(Pixel 7 AVD, Android 17, merge 전 `3ed4065`): 설치·아이콘(이식판과 따로 설치, 학교 로고 아이콘, 토스트 아이콘도 로고), 첫 실행에 권한 창 없음·QR 때 카메라만, 비행기 모드로 시작 → 안내와 다시 시도 → 메인, 첨부 내려받기(자식 창이 바로 닫히고 공지가 보임, 뒤로 키 한 번에 메인), 첫 실행 뒤로 키(404 없이 종료 안내), QR 화면 색·닫기 버튼, `dialog` 버튼 글자, 글자 크기(기본 100%, 200%에서 팝업 헤더 제목은 칸 안), 닫힌 창 웹뷰 해제(첨부 뒤 자식 창이 DevTools에서 사라짐, 즐겨찾기 팝업 5번 열고 닫아도 웹뷰 2개). 앱 크래시·Dart 예외 로그 없음. 자세한 것은 [IMPROVEMENTS.md](IMPROVEMENTS.md) 9절 표시.
 >   - 찾은 문제: 글자 크기 200%에서 학교 웹 페이지가 깨짐(공지 목록 겹침, 아이콘 이름·학교 이름 잘림) → 1차 후속에서 웹 글자 1.3배 상한
@@ -610,7 +610,7 @@ CoordinatorLayout (바깥 여백 1dp)
 ### 6.1 구조
 
 > 개선판 1차(2026-10-26)에서 바뀐 파일과 새 파일을 표에 함께 적었다. 바뀐 동작은 [IMPROVEMENTS.md](IMPROVEMENTS.md).
-> 개선판 2차(2026-10-27)에서 하단 탭과 새 화면 파일을 더했다(IMPROVEMENTS.md 10절). 2026-10-29에 되돌려 2차 파일 가운데 색 토큰(`app_colors.dart`, `app_theme.dart`)만 남았다(IMPROVEMENTS.md 12절).
+> 개선판 2차(2026-10-27)에서 하단 탭과 새 화면 파일을 더했다(IMPROVEMENTS.md 10절). 2026-10-29에 되돌려 2차 파일 가운데 색 토큰(`app_colors.dart`)만 남았다(IMPROVEMENTS.md 12절).
 > 외부 리뷰 반영(2026-10-27~28, IMPROVEMENTS.md 11절)에서 바뀐 것은 아래 표의 해당 파일에 적었다.
 
 원본 화면 2개(IntroActivity, MainActivity)와 QR 화면을 Flutter 화면으로 옮겼다. Android 쪽 액티비티는 Flutter용 하나(`MainActivity.kt`)뿐이다. 원본에서 Android가 직접 그리거나 처리하던 것(시스템 대화상자, 토스트, 인텐트, 권한, NFC, 비콘, 다운로드, 파일 선택)만 Kotlin이 같은 API로 처리하고, 채널(`kr.ac.ut.mobile.flutter/native`)로 주고받는다.
@@ -642,7 +642,6 @@ CoordinatorLayout (바깥 여백 1dp)
 | 파일 | 내용 |
 |---|---|
 | `lib/src/app_colors.dart` | Figma 색 토큰 `AppColors`. `schoolColor`는 primary |
-| `lib/src/app_theme.dart` | 새 화면용 Material 3 테마(Figma 토큰). 지금 앱에서는 쓰지 않음 |
 
 ### 6.2 웹뷰
 
@@ -661,7 +660,7 @@ CoordinatorLayout (바깥 여백 1dp)
 - Flutter가 그리는 부분(헤더·푸터 버튼, alert·dialog·nfc 대화상자, 로딩 표시)은 원본 XML 크기·색을 dp 그대로 옮겼다. 글꼴만 다를 수 있다(삼성 시스템 글꼴 대신 Flutter 글꼴). 개선판에서는 대화상자 글자도 휴대폰 글자 크기 설정을 따르고(원본은 dp 고정), alert 버튼은 학교 대표색이다.
 - 모든 화면은 `MaterialApp.builder`에서 투명 `Material`로 감싼다(`SmartMobileApp.wrapScreens`). 그래서 크기·색만 정한 글자도 원본 TextView처럼 밑줄 없음, 시스템 글꼴(Roboto), 굵기를 정하지 않으면 보통 굵기로 그려진다. 이전에는 메인 화면 위에 `Material`이 없어 노란 이중 밑줄·monospace·w900으로 나왔다(1장 "고친 것", 테스트 `test/text_style_test.dart`).
 - 앱 화면 크기(`Display.getSize`)는 창 크기에서 상태 표시줄과 내비게이션 바를 뺀 값으로 계산한다.
-- 개선판 2차: 새 화면용으로 Figma 색 토큰의 Material 3 테마(`app_theme.dart`)를 만들었다. 2026-10-29에 새 화면을 되돌려 지금은 모든 화면이 위 앱 테마(Material 2)다.
+- 개선판 2차: 새 화면용으로 Figma 색 토큰의 Material 3 테마(`app_theme.dart`)를 만들었다가, 새 화면을 되돌리면서 2026-10-29에 지웠다(`ea31d1b`에 있음). 지금은 모든 화면이 위 앱 테마(Material 2)다.
 
 ### 6.4 원본과 다른 점
 

@@ -27,7 +27,6 @@ class SmartMobileApp extends StatelessWidget {
 
   /// 강조색은 대표색 하나(통합본 5-10, 2차에서 Figma 토큰 primary). 원본 테마 색은 #006BD0이었다.
   /// 원본 모양 위젯(헤더·푸터 버튼, 대화상자)이 쓰는 Material 2 테마로, 지금은 모든 화면이 쓴다.
-  /// 새 화면용 Material 3 테마는 `app_theme.dart`에 있다(2차 화면을 되돌려 지금은 쓰지 않음).
   static final ThemeData theme = ThemeData(
     colorScheme: const ColorScheme.light(
       primary: schoolColor,

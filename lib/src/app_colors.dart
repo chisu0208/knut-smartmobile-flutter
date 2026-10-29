@@ -4,8 +4,7 @@ import 'dart:ui';
 /// 값을 2026-10-27에 앱 전체 색으로 정했다(개선판 2차).
 ///
 /// 개선판 1차는 학교 엠블럼에서 고른 적갈색 #76161B 하나를 썼다(통합본 5-10). 2차는 그 자리를
-/// [primary]로 바꿨다. 이 토큰으로 만든 새 화면용 Material 3 테마는 `app_theme.dart`다(2차 새
-/// 화면은 2026-10-29에 되돌려 지금은 쓰지 않음). 흰 글자와의 명암비는 [primary] 7.8:1,
+/// [primary]로 바꿨다. 흰 글자와의 명암비는 [primary] 7.8:1,
 /// [primaryDark] 12.1:1로 기준(4.5:1)을 넘는다(IMPROVEMENTS.md 개선판 2차).
 ///
 /// Android 쪽 같은 값은 `android/app/src/main/res/values/colors.xml`에 있다. 바꿀 때는 둘 다
