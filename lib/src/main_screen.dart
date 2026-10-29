@@ -14,6 +14,7 @@ import 'intro_screen.dart';
 import 'legacy_json.dart';
 import 'legacy_widgets.dart';
 import 'native_bridge.dart';
+import 'offline_banner.dart';
 import 'popup_animation.dart';
 import 'popup_state.dart';
 import 'qr_scan_screen.dart';
@@ -109,6 +110,9 @@ class _MainScreenState extends State<MainScreen>
   // 회색 구분선이 잠깐 보였다.
   List<_MenuButton>? _footerItems;
 
+  /// 앱을 쓰는 동안 인터넷이 끊기면 맨 위에 안내 띠를 보인다(개선판).
+  late final OfflineTracker _offline = OfflineTracker(onChanged: (_) => _refresh());
+
   // ---- 팝업 ----
   Alignment _bgGravity = Alignment.topRight; // XML gravity="right"
   String? _popupSizeAlign; // 팝업 크기를 정한 정렬(null = 꽉). 크기는 그릴 때 계산(6-12)
@@ -146,6 +150,15 @@ class _MainScreenState extends State<MainScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    NativeBridge.on('networkChanged', (MethodCall call) async {
+      _offline.update(online: call.arguments != false);
+    });
+    // 이 화면이 뜨기 전에 이미 끊겼다면 Kotlin의 알림을 못 받았으므로 지금 상태를 한 번 묻는다.
+    NativeBridge.isNetworkConnected().then(
+      (bool online) {
+        if (mounted) _offline.update(online: online);
+      },
+    );
     NativeBridge.on(
       'jsCommand',
       (MethodCall call) async =>
@@ -237,9 +250,11 @@ class _MainScreenState extends State<MainScreen>
       'webEvent',
       'nfcTag',
       'relaunchIntro',
+      'networkChanged',
     ]) {
       NativeBridge.off(m);
     }
+    _offline.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _ticker.dispose();
     super.dispose();
@@ -1454,6 +1469,7 @@ class _MainScreenState extends State<MainScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
+        if (_offline.offline) const OfflineBanner(),
         if (_headerVisible) _mainHeader(),
         const SizedBox(height: 1), // main_body layout_marginTop
         Expanded(

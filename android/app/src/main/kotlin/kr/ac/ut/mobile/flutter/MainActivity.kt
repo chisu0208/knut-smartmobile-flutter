@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.net.ConnectivityManager
+import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.Uri
 import android.nfc.NdefMessage
@@ -71,6 +72,7 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
     private var nfcPendingIntent: PendingIntent? = null
     private var mainActive = false
     private var resumed = false
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     private var beaconManager: BeaconManager? = null
     private val beacons = ArrayList<Beacon>()
@@ -269,6 +271,50 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
         val manager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager? ?: return false
         val capabilities = manager.getNetworkCapabilities(manager.activeNetwork) ?: return false
         return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+
+    /**
+     * 개선판: 앱이 앞에 있는 동안 연결이 끊기거나 돌아오면 Dart(`networkChanged`, true=연결됨)에 알린다.
+     *
+     * 홈 타일은 페이지가 서버로 직접 요청을 보내서, 끊기면 앱이 모르고 아무 반응이 없었다. Dart가 이 알림으로
+     * 홈 맨 위에 안내 띠를 보인다. 기본 네트워크가 바뀔 때마다 불리므로(와이파이 → 모바일 데이터 등) 잠깐 끊겼다
+     * 돌아오는 것을 거르는 일은 Dart 쪽이 한다. 연결 여부의 기준은 [isNetworkConnected]와 같다.
+     */
+    private fun watchNetwork() {
+        if (networkCallback != null) return
+        val manager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager? ?: return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                reportNetwork(capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET))
+            }
+
+            override fun onLost(network: Network) {
+                reportNetwork(false)
+            }
+        }
+        try {
+            manager.registerDefaultNetworkCallback(callback)
+            networkCallback = callback
+        } catch (_: RuntimeException) {
+            return
+        }
+        // 등록 직후에는 이미 끊겨 있는 상태가 알려지지 않으므로 지금 상태를 한 번 알린다.
+        reportNetwork(isNetworkConnected())
+    }
+
+    private fun unwatchNetwork() {
+        val callback = networkCallback ?: return
+        networkCallback = null
+        val manager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager? ?: return
+        try {
+            manager.unregisterNetworkCallback(callback)
+        } catch (_: IllegalArgumentException) {
+        }
+    }
+
+    /** 콜백은 연결 관리 스레드에서 불리므로 UI 스레드로 넘겨 Dart를 부른다. */
+    private fun reportNetwork(online: Boolean) {
+        runOnUiThread { invokeDart("networkChanged", online) }
     }
 
     private fun allGranted(permissions: List<String>): Boolean =
@@ -489,12 +535,14 @@ class MainActivity : FlutterActivity(), BeaconConsumer {
         super.onResume()
         resumed = true
         updateForegroundDispatch()
+        watchNetwork()
     }
 
     override fun onPause() {
         super.onPause()
         if (mainActive) nfcAdapter?.disableForegroundDispatch(this)
         resumed = false
+        unwatchNetwork()
     }
 
     override fun onNewIntent(intent: Intent) {

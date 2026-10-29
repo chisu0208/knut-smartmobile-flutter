@@ -38,7 +38,7 @@
 
 > **개선판(2026-10-27)**
 >
-> - **2차 화면 되돌림**(2026-10-29, 로컬 세션, `main` `ea31d1b` 다음): 아래 2차의 탭·새 화면과 앱 안 고정 데이터를 뺐다. `flutter analyze` 문제 없음, 시험 85개 통과, `flutter build apk --debug` 성공, 에뮬레이터로 홈·팝업·뒤로 키·전자출결(Chrome)·도서관·길찾기 확인([IMPROVEMENTS.md](IMPROVEMENTS.md) 12절). 아래 2차 줄의 확인 목록·데이터는 지금 앱에 해당 없다.
+> - **2차 화면 되돌림**(2026-10-29, 로컬 세션, `main` `ea31d1b` 다음): 아래 2차의 탭·새 화면과 앱 안 고정 데이터를 뺐다. `flutter analyze` 문제 없음, 시험 91개 통과(연결 끊김 안내 띠 시험 6개 포함), `flutter build apk --debug` 성공, 에뮬레이터로 홈·팝업·뒤로 키·전자출결(Chrome)·도서관·길찾기 확인([IMPROVEMENTS.md](IMPROVEMENTS.md) 12절). 아래 2차 줄의 확인 목록·데이터는 지금 앱에 해당 없다.
 > - **외부 리뷰 반영**(2026-10-27~28, `4450595`·`80b35af`·`2c15829`): 보안 4건(`push_url`은 학교 주소만, `intent://`를 브라우저처럼 정리, `allytteAndroid`는 학교 주소 페이지에서만 명령을 받음, 자식·손자 창 파일 접근 끔)과 작은 버그(팝업을 닫을 때 자식·손자 창도 닫기, `app` 명령, 위치 전송 주소의 `%`, 내려받기 파일명, 아이콘 받기 시간 제한, 네트워크 판정, 비콘 알림 정리, 종료 전 쿠키 저장). 에뮬레이터에서 재현·확인. [IMPROVEMENTS.md](IMPROVEMENTS.md) 11절
 > - **개선판 2차**(클라우드 세션, `main` `fb65d50`에서 새 브랜치): 하단 탭·학식·교통·출결·도서관 탭과 대표색. `flutter analyze` 문제 없음, 시험 140개 통과(1차 82 + 2차 58), `flutter build apk --debug` 성공(패키지·라벨·권한 1차와 같음). 데이터는 학교 홈페이지에서 2026-10-27에 가져온 앱 안 고정 데이터(`assets/data/`, 다시 만들기 `tool/make_data.py`). 에뮬레이터 확인 목록(9절 38~56번)은 되돌리면서 지웠다(12절). 빠진 데이터(증평 이번 주 식단, 의왕 식단, 증평·의왕 길찾기 divisionId 등)는 10.7절
 > - **PR #6(개선판 1차) merge**: `main` = `ab2ca43`.
@@ -623,6 +623,7 @@ CoordinatorLayout (바깥 여백 1dp)
 | `lib/src/web_entry.dart` | `X0()`/`Z0()`/`onCreateWindow` | 웹뷰 하나(메인·팝업·자식·손자) 만들기. 개선판: 불러오기 상태(`page_load.dart`)와 Kotlin 웹뷰 이벤트 연결, 다시 시도, 방문 기록 지우기, 웹 글자 크기(1.3배 상한, `textZoomFor`) |
 | `lib/src/page_load.dart` (개선판) | — | 웹뷰 하나의 본문 불러오기 상태: 로딩 표시, 10초 지연·연결 실패 안내, 다시 시도 방법, 방문 기록 지우기 시점, 내려받기만 한 창 닫기(`closeWindowAfterDownload`) |
 | `lib/src/connection_notice.dart` (개선판) | — | 연결 실패·지연 안내 화면(시작 화면, 메인·팝업 웹뷰) |
+| `lib/src/offline_banner.dart` (개선판, 2026-10-29) | — | 앱을 쓰는 동안 인터넷이 끊기면 홈 맨 위에 보이는 안내 띠(`OfflineBanner`)와, 잠깐 끊김을 거르는 `OfflineTracker`. Kotlin `networkChanged` 알림을 받음 |
 | `lib/src/app_colors.dart` (개선판) | `colors.xml` | 학교 대표색 `schoolColor`(Android `res/values/colors.xml`의 `school`과 같은 값) |
 | `lib/src/popup_animation.dart` | `res/anim`, 애니메이션 리스너 | 옛 Android 애니메이션 규칙(5.12). 1차 후속: 정렬별 팝업 크기(`popupSizePx`) |
 | `lib/src/popup_state.dart` (PR #7 리뷰 반영) | `f7670B`·`f7672C`·`f7676E`, A0, 애니메이션 리스너 | 팝업 보임 상태와 뒤로가기 주인. 등장(5.7)·닫기(A0, 5.12)·애니메이션 끝 처리 규칙 |
@@ -633,7 +634,7 @@ CoordinatorLayout (바깥 여백 1dp)
 | `lib/src/device_prefs.dart` | SharedPreferences `"device"` | |
 | `lib/src/qr_scan_screen.dart` | `ZxingActivity` | 같은 배치, 인식은 mobile_scanner(ML Kit). 개선판: 테두리·닫기 버튼을 그림 대신 코드로 그림 |
 | `lib/src/native_bridge.dart` | — | Kotlin 채널. 개선판: 기능별 권한 요청(`requestFeaturePermission`) |
-| `android/.../MainActivity.kt` | 두 액티비티의 Android 부분 | 권한, 시스템 대화상자(권한 설정 안내·루팅 안내), 토스트, 인텐트, NFC foreground dispatch·태그 읽기, GPS, AltBeacon, 파일 선택 결과. 외부 리뷰 반영: `push_url`은 학교 주소만(`pushUrlOf`), `app` 명령(`launchPackage`), 위치 전송 주소(`gpsUrl`), 네트워크 판정(`isNetworkConnected`), 비콘 알림 정리, 종료 전 쿠키 저장(`exitApp`) |
+| `android/.../MainActivity.kt` | 두 액티비티의 Android 부분 | 권한, 시스템 대화상자(권한 설정 안내·루팅 안내), 토스트, 인텐트, NFC foreground dispatch·태그 읽기, GPS, AltBeacon, 파일 선택 결과. 외부 리뷰 반영: `push_url`은 학교 주소만(`pushUrlOf`), `app` 명령(`launchPackage`), 위치 전송 주소(`gpsUrl`), 네트워크 판정(`isNetworkConnected`), 비콘 알림 정리, 종료 전 쿠키 저장(`exitApp`). 2026-10-29: 앱이 앞에 있는 동안 연결 상태가 바뀌면 Dart에 `networkChanged` 알림(`watchNetwork`) |
 | `android/.../WebViewBridge.kt` | WebView 설정·클라이언트 | 원본 설정값, `allytteAndroid` 객체, 링크 처리(sms/tel/mailto/intent/마켓), 다운로드, `window.open`·`window.close`, JS 알림창, 파일 선택. 개선판: 글자 크기(Dart가 정한 값)·확대, 웹뷰 이벤트(`webEvent`), 방문 기록 지우기, 메인 웹뷰 JS 알림창도 팝업과 같게. 외부 리뷰 반영: `intent://` 정리(`sanitizeBrowsable`), `allytteAndroid`는 학교 주소 페이지에서만(`isSchoolPage`), 자식·손자 창 파일 접근 끔, 내려받기 파일명(`downloadFileName`) |
 | `tool/make_launcher_icons.py` (개선판) | `assets/app_icon_1024.png` | 런처 아이콘 만들기 |
 
