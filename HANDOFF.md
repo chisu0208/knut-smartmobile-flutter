@@ -8,7 +8,8 @@
 > 갱신: 2026-10-27, 클라우드 세션에서 개선판 1차 후속(1장 현재 상태, 5장 개선판 표시와 5.21, 6장, 8장 11·12번)
 > 갱신: 2026-10-27, 클라우드 세션에서 PR #7 리뷰 반영(1장 현재 상태의 로그인 후 확인, 5.11·5.12, 6장)
 > 갱신: 2026-10-27, 클라우드 세션에서 개선판 2차(1장 맨 앞·현재 상태, 3장, 6장). 하단 탭 5개와 학식·교통 새 화면, [IMPROVEMENTS.md](IMPROVEMENTS.md) 10절
-> 갱신: 2026-10-29, 로컬 세션에서 2차 화면 되돌림(1장 맨 앞·현재 상태, 3장, 6장). 대표색만 남기고 하단 탭과 새 화면을 뺐다, [IMPROVEMENTS.md](IMPROVEMENTS.md) 12절
+> 갱신: 2026-10-29, 로컬 세션에서 2차 화면 되돌림(1장 맨 앞·현재 상태, 3장, 6장). 2차 가운데 대표색만 남기고 하단 탭과 새 화면을 뺐다(외부 리뷰 반영은 그대로), [IMPROVEMENTS.md](IMPROVEMENTS.md) 12절
+> 갱신: 2026-10-29, 로컬 세션에서 외부 리뷰 반영(보안·작은 버그)을 1장 현재 상태, 5장 개선판 표시, 6장에 적음, [IMPROVEMENTS.md](IMPROVEMENTS.md) 11절
 > 이 문서만 읽고 바로 이어서 작업할 수 있도록, 원본 코드를 읽으며 확인한 동작 규칙을 모두 적었다.
 
 ---
@@ -38,6 +39,7 @@
 > **개선판(2026-10-27)**
 >
 > - **2차 화면 되돌림**(2026-10-29, 로컬 세션, `main` `ea31d1b` 다음): 아래 2차의 탭·새 화면과 앱 안 고정 데이터를 뺐다. `flutter analyze` 문제 없음, 시험 86개 통과, `flutter build apk --debug` 성공. 아래 2차 줄의 확인 목록·데이터는 지금 앱에 해당 없다.
+> - **외부 리뷰 반영**(2026-10-27~28, `4450595`·`80b35af`·`2c15829`): 보안 4건(`push_url`은 학교 주소만, `intent://`를 브라우저처럼 정리, `allytteAndroid`는 학교 주소 페이지에서만 명령을 받음, 자식·손자 창 파일 접근 끔)과 작은 버그(팝업을 닫을 때 자식·손자 창도 닫기, `app` 명령, 위치 전송 주소의 `%`, 내려받기 파일명, 아이콘 받기 시간 제한, 네트워크 판정, 비콘 알림 정리, 종료 전 쿠키 저장). 에뮬레이터에서 재현·확인. [IMPROVEMENTS.md](IMPROVEMENTS.md) 11절
 > - **개선판 2차**(클라우드 세션, `main` `fb65d50`에서 새 브랜치): 하단 탭·학식·교통·출결·도서관 탭과 대표색. `flutter analyze` 문제 없음, 시험 140개 통과(1차 82 + 2차 58), `flutter build apk --debug` 성공(패키지·라벨·권한 1차와 같음). 데이터는 학교 홈페이지에서 2026-10-27에 가져온 앱 안 고정 데이터(`assets/data/`, 다시 만들기 `tool/make_data.py`). **에뮬레이터 확인 전**: [IMPROVEMENTS.md](IMPROVEMENTS.md) 9절 38~56번. 빠진 데이터(증평 이번 주 식단, 의왕 식단, 증평·의왕 길찾기 divisionId 등)는 10.7절
 > - **PR #6(개선판 1차) merge**: `main` = `ab2ca43`.
 > - **로컬 에뮬레이터 확인**(Pixel 7 AVD, Android 17, merge 전 `3ed4065`): 설치·아이콘(이식판과 따로 설치, 학교 로고 아이콘, 토스트 아이콘도 로고), 첫 실행에 권한 창 없음·QR 때 카메라만, 비행기 모드로 시작 → 안내와 다시 시도 → 메인, 첨부 내려받기(자식 창이 바로 닫히고 공지가 보임, 뒤로 키 한 번에 메인), 첫 실행 뒤로 키(404 없이 종료 안내), QR 화면 색·닫기 버튼, `dialog` 버튼 글자, 글자 크기(기본 100%, 200%에서 팝업 헤더 제목은 칸 안), 닫힌 창 웹뷰 해제(첨부 뒤 자식 창이 DevTools에서 사라짐, 즐겨찾기 팝업 5번 열고 닫아도 웹뷰 2개). 앱 크래시·Dart 예외 로그 없음. 자세한 것은 [IMPROVEMENTS.md](IMPROVEMENTS.md) 9절 표시.
@@ -279,7 +281,7 @@ MainActivity
 
 ## 5. 동작 규칙 (원본 코드 기준)
 
-> 원본(과 이식판)의 규칙이다. 개선판 1차에서 바뀐 규칙은 해당 줄에 **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md))** 표시를 달았다. 바뀐 곳: 5.2 권한·등록 실패, 5.3 시간 제한, 5.4 로딩 표시, 5.7·5.12 애니메이션 시간, 5.8 글자 버튼 칸, 5.9 alert 버튼 색·루팅, 5.10 네트워크 없을 때 팝업, 5.11 글자 크기·확대·원격 디버깅·자식 창 닫기·파일 선택·내려받기, 5.13 첫 실행 뒤로 키(방문 기록), 5.14 흔들기·위치 권한, 5.16 비콘 권한(리뷰 반영), 5.17 취소 문구·QR 색, 5.18 루팅. 1차 후속: 5.6 메인 헤더 메뉴 배열·푸터 뒤로 키, 5.7 창 크기가 바뀔 때 팝업 크기, 5.8 배경 그림 자리·실패한 그림·대화상자 버튼 순서, 5.11 웹 글자 상한·메인 JS 알림창, 5.12 `left` 팝업 배경, 5.21. PR #7 리뷰 반영: 5.11 JS 알림 뒤로 키·사용자 조작 없이 열린 창, 5.12 팝업을 닫으면 뒤로가기 주인을 메인으로.
+> 원본(과 이식판)의 규칙이다. 개선판 1차에서 바뀐 규칙은 해당 줄에 **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md))** 표시를 달았다. 바뀐 곳: 5.2 권한·등록 실패, 5.3 시간 제한, 5.4 로딩 표시, 5.7·5.12 애니메이션 시간, 5.8 글자 버튼 칸, 5.9 alert 버튼 색·루팅, 5.10 네트워크 없을 때 팝업, 5.11 글자 크기·확대·원격 디버깅·자식 창 닫기·파일 선택·내려받기, 5.13 첫 실행 뒤로 키(방문 기록), 5.14 흔들기·위치 권한, 5.16 비콘 권한(리뷰 반영), 5.17 취소 문구·QR 색, 5.18 루팅. 1차 후속: 5.6 메인 헤더 메뉴 배열·푸터 뒤로 키, 5.7 창 크기가 바뀔 때 팝업 크기, 5.8 배경 그림 자리·실패한 그림·대화상자 버튼 순서, 5.11 웹 글자 상한·메인 JS 알림창, 5.12 `left` 팝업 배경, 5.21. PR #7 리뷰 반영: 5.11 JS 알림 뒤로 키·사용자 조작 없이 열린 창, 5.12 팝업을 닫으면 뒤로가기 주인을 메인으로. 외부 리뷰 반영(11절): 5.2 `push_url`, 5.5 `app`, 5.10 네트워크 판정, 5.11 `allytteAndroid`·`intent://`·자식 창 파일 접근·내려받기 파일명, 5.12 팝업을 닫을 때 자식 창, 5.13 종료 전 쿠키, 5.14 위치 전송 주소, 5.16 비콘 알림.
 
 ### 5.1 공통 부모 (`BaseActivity_a.java`)
 
@@ -294,7 +296,7 @@ MainActivity
 
 - 레이아웃: 배경 drawable `0x7f0700f2`(**xxhdpi split APK에만 있어 저장소에 없음**). `iv_intro` 이미지뷰는 `gone`이라 실제로 보이는 건 배경뿐이다.
   - 사용자 폰에서 split APK를 꺼내면 구할 수 있다: `adb shell pm path kr.ac.ut.mobile` → `split_config.xxhdpi.apk` pull.
-- 푸시로 열렸으면 `push_url` extra를 기억한다.
+- 푸시로 열렸으면 `push_url` extra를 기억한다. **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md) 11.1절)** `https://mobile.ut.ac.kr` 주소만 받고, 아니면 값이 없는 것으로 본다
 - 권한(모두 허용돼야 다음으로): **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md))** 시작할 때 묻지 않고 기능을 쓸 때 그 권한만 요청
 
 | SDK | 요청 권한 |
@@ -369,7 +371,7 @@ CoordinatorLayout (바깥 여백 1dp)
 | `dialog` | 버튼 대화상자(5.9) |
 | `function` | 아래 표 |
 | `browser` | 팝업 닫기(A0) 후 외부 브라우저로 `config.url` |
-| `app` | `config.contentUrl`을 패키지 이름으로 보고 실행 시도, 없으면 `config.storeUrl`을 외부로 열기 |
+| `app` | `config.contentUrl`을 패키지 이름으로 보고 실행 시도, 없으면 `config.storeUrl`을 외부로 열기 **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md) 11.2절)** Android 11부터 늘 스토어로 가던 것을, 그 앱의 시작 화면을 바로 열어 보고 없을 때만 스토어로 |
 | `data` | `config.type=="global"`이고 `config.json.type=="splash"`이면 `config.json.config.url`을 `splash_url`로 저장하고 `intro.png`로 내려받음 |
 
 | function | 처리 |
@@ -491,7 +493,7 @@ CoordinatorLayout (바깥 여백 1dp)
 
 - 공통 헤더: `User-Agent: allytte {versionName}`, `allytte-device-token`, `allytte-device-platform: android` — **loadUrl의 추가 헤더로만** 붙는다. 웹뷰의 기본 User-Agent 설정은 바꾸지 않는다(링크 이동 등 이후 요청에는 이 헤더가 없다)
 - B0(url): 저장된 `webview`가 `"popup"`이면 팝업 웹뷰, 아니면 메인 웹뷰에 로드
-- c1(url, 팝업 전용): 네트워크(와이파이·모바일) 연결이 없으면 `네트워크가 연결되어 있지 않습니다.` 알림 후 중단 **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md))** 팝업 안에 연결 안내
+- c1(url, 팝업 전용): 네트워크(와이파이·모바일) 연결이 없으면 `네트워크가 연결되어 있지 않습니다.` 알림 후 중단 **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md))** 팝업 안에 연결 안내. 연결 판정은 기본 네트워크가 인터넷을 쓸 수 있는지(VPN·유선랜 포함, 11.2절)
 
 ### 5.11 웹뷰 설정
 
@@ -503,8 +505,8 @@ CoordinatorLayout (바깥 여백 1dp)
 | DOM storage / DB | 켬 / 켬 | 켬 / 켬 | 켬 / 기본 |
 | 여러 창 | 기본(끔) | 켬, JS로 창 열기 허용 | 켬 |
 | useWideViewPort | 기본 | **끔** | 기본 |
-| 파일 접근 | 기본 | 기본 | 모두 허용 |
-| `allytteAndroid` 객체 | 있음 | 있음 | 없음 |
+| 파일 접근 | 기본 | 기본 | 모두 허용 (개선판: 모두 끔, 11.1절) |
+| `allytteAndroid` 객체 | 있음 (개선판: 지금 페이지가 학교 주소일 때만 명령을 받음, 11.1절) | 있음 (메인과 같음) | 없음 |
 | 다운로드 | 없음 | 있음 | 있음 |
 | JS alert/confirm | **안드로이드 기본 대화상자**(크롬 클라이언트를 두 번 설정해서 콘솔 로그용만 남음) (개선판: 팝업과 같음) | 제목 없는 AlertDialog, alert는 취소 불가·뒤로가기=확인(창은 닫히지 않음), confirm은 확인/취소 (개선판: alert도 뒤로 키로 닫힘) | 팝업과 같음 |
 | 파일 선택 | 없음 | 토스트 `파일 선택창을 선택하였습니다.` 후 모든 형식 다중 선택 | 자식만 있음(손자 없음) |
@@ -513,16 +515,16 @@ CoordinatorLayout (바깥 여백 1dp)
 - `allytteAndroid` 객체 메서드: `allytteCommandHandler(json)` → 명령 처리기, `addressSave(phone)` → 연락처 추가 화면(직장 전화)
 - 링크 처리:
   - 메인: `sms:`/`mailto:` → SENDTO, `tel:` → 전화 걸기 화면(DIAL), 나머지는 웹뷰가 그대로
-  - 팝업: 위 + `intent://` 실행(앱 없으면 그 패키지 마켓 페이지), `play.google.com/store/apps/details?id=` 또는 `market://details?id=` → 마켓 앱
+  - 팝업: 위 + `intent://` 실행(앱 없으면 그 패키지 마켓 페이지), `play.google.com/store/apps/details?id=` 또는 `market://details?id=` → 마켓 앱 **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md) 11.1절)** `intent://`는 브라우저처럼 정리해서(`BROWSABLE` 분류, `component`·`selector` 제거) 실행하고, 실행 중 예외로 앱이 꺼지지 않음
   - 자식·손자: 가로채지 않음
 - 자식 웹뷰는 팝업 웹뷰와 같은 FrameLayout(`webview_frame`) 위에 꽉 차게 얹는다. 자식에서 `https://tis.ut.ac.kr/main.do` 로드가 끝나면 뒤로가기 처리(y0) 실행 **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md))** 사용자 조작 없이 열린 창(`isUserGesture` false)은 처음에 숨겨 두고, 입력 칸이 보이거나 20초가 지나도 열려 있으면 보임
 - 자식 `window.close()` → 자식 제거, 그리고 **팝업도 닫음**(A0). 손자 `window.close()` → 손자 제거·파괴 **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md))** 닫힌 창만 제거·파괴, 팝업은 남김. 페이지를 그리지 않고 내려받기만 한 자식·손자 창은 바로 닫음. 팝업을 바꿀 때 이전 팝업과 그 자식·손자 창도 파괴
-- 다운로드 **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md))** Android 9 이하에서만 내려받을 때 저장 권한 요청: `Content-Disposition`에서 파일 이름을 뽑아(`attachment; filename=` 제거, `=` 뒤 마지막, 따옴표·공백·세미콜론 정리) DownloadManager로 공용 Download 폴더에 저장, 쿠키·UA 헤더 포함, 토스트 `파일이 다운로드됩니다.` 실패 시 저장 권한 요청 + 토스트 `다운로드를 위해\n권한이 필요합니다.`
+- 다운로드 **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md))** Android 9 이하에서만 내려받을 때 저장 권한 요청: `Content-Disposition`에서 파일 이름을 뽑아(`attachment; filename=` 제거, `=` 뒤 마지막, 따옴표·공백·세미콜론 정리) DownloadManager로 공용 Download 폴더에 저장, 쿠키·UA 헤더 포함, 토스트 `파일이 다운로드됩니다.` 실패 시 저장 권한 요청 + 토스트 `다운로드를 위해\n권한이 필요합니다.` (개선판: `%`가 든 이름, `filename*=UTF-8''`, 경로·빈 이름도 처리, 11.2절)
 - 페이지 시작 → 로딩 표시, 끝 → 숨김 (메인·팝업·자식·손자 모두)
 
 ### 5.12 팝업 닫기 A0와 상태 값
 
-- A0: `webview="main"` 저장 후 닫기 실행
+- A0: `webview="main"` 저장 후 닫기 실행 **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md) 11.2절)** 팝업에서 열린 자식·손자 창도 함께 닫음
   - `f7670B`가 false면 배경 숨기기만
   - true면 정렬별 퇴장 애니메이션(`left`/`right`/`top`/`bottom`), `center`·`full`은 바로 숨기고 `f7670B=false`
 - 애니메이션 끝 처리(같은 리스너가 등장·퇴장 모두에 붙어 있음): `f7670B`가 false였으면 true로(=등장 완료), true였으면 배경을 숨기고(`INVISIBLE`) false로(=퇴장 완료). 오른쪽 리스너는 false였을 때 저장된 `webview`가 `"main"`이면 false 유지
@@ -535,7 +537,7 @@ CoordinatorLayout (바깥 여백 1dp)
 
 1. 손자 웹뷰가 열려 있으면: 뒤로 갈 수 있으면 뒤로, 아니면 `window.close()` 실행하고 손자 상태 false
 2. 자식도 같은 방식
-3. 메인이 주인(`f7676E`)이면: 메인이 뒤로 갈 수 있으면 뒤로(**(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md))** `webview`/`main`으로 불러온 페이지가 끝나면 방문 기록을 지워, 이전 서버 페이지로 돌아가지 않음), 아니면 2초 안에 두 번째면 앱 종료, 처음이면 토스트 `'뒤로' 버튼을 한번 더 누르시면 종료됩니다.`
+3. 메인이 주인(`f7676E`)이면: 메인이 뒤로 갈 수 있으면 뒤로(**(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md))** `webview`/`main`으로 불러온 페이지가 끝나면 방문 기록을 지워, 이전 서버 페이지로 돌아가지 않음), 아니면 2초 안에 두 번째면 앱 종료(**(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md) 11.2절)** 끝내기 전에 쿠키 저장), 처음이면 토스트 `'뒤로' 버튼을 한번 더 누르시면 종료됩니다.`
 4. 팝업이 주인이면: 팝업이 뒤로 갈 수 있으면 뒤로, 아니면 A0 후 `f7676E=true`
 
 ### 5.14 센서·위치
@@ -545,7 +547,7 @@ CoordinatorLayout (바깥 여백 1dp)
 - 원본에서 자기장 센서 처리가 가속도 분기 안에 들어가 있어 **방위각은 항상 0**이다
 - 앱이 백그라운드로 가면 센서 해제
 - `gps`: 정밀 위치 권한이 없으면 요청만 하고 0,0,0으로 보냄. 있으면 network → gps 순서로 마지막 위치를 읽음(gps가 있으면 덮어씀)
-  - 주소: `config.url + String.format("&latitude=%s&longitude=%s&altitude=%s&azimuth=%s", 경도, 위도, 고도, 방위각)` — **위도 자리에 경도, 경도 자리에 위도**가 들어간다(원본 버그). `?` 확인 없이 `&`를 붙인다
+  - 주소: `config.url + String.format("&latitude=%s&longitude=%s&altitude=%s&azimuth=%s", 경도, 위도, 고도, 방위각)` — **위도 자리에 경도, 경도 자리에 위도**가 들어간다(원본 버그). `?` 확인 없이 `&`를 붙인다 **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md) 11.2절)** 주소를 형식 문자열 밖에서 붙여, 주소에 `%`가 있어도 보냄(위도·경도 자리는 원본 그대로)
 
 ### 5.15 NFC
 
@@ -561,7 +563,7 @@ CoordinatorLayout (바깥 여백 1dp)
 - iBeacon 레이아웃 `m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24`(AltBeacon)
 - **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md) 3절)** 검색 전에 근처 기기(`BLUETOOTH_SCAN`, Android 12 이상)·정밀·대략 위치 권한 요청. 원본은 대략 위치만 있어 Android 10 이상에서 찾지 못했다
 - `config.uuid` 배열과 `config.url`(+`?uuid=`/`&uuid=`) 기억 → 모든 비콘 검색 시작 → **5초 뒤**: 찾은 비콘 중 id1이 배열의 uuid와 같은 것(뒤에 나온 것이 이김)의 id1·id2·id3으로
-  `url + id1 + "&major=" + id2 + "&major=" + id3`로 POST(**major가 두 번**, 원본 그대로. 못 찾으면 `null` 문자열) → 검색 중지
+  `url + id1 + "&major=" + id2 + "&major=" + id3`로 POST(**major가 두 번**, 원본 그대로. 못 찾으면 `null` 문자열) → 검색 중지 **(개선판 → [IMPROVEMENTS.md](IMPROVEMENTS.md) 11.2절)** 검색마다 알림·해석기가 쌓이지 않게 하나만 붙이고, 멈출 때·화면이 닫힐 때 뗌
 
 ### 5.17 QR (`function: qrcode`)
 
@@ -608,7 +610,8 @@ CoordinatorLayout (바깥 여백 1dp)
 ### 6.1 구조
 
 > 개선판 1차(2026-10-26)에서 바뀐 파일과 새 파일을 표에 함께 적었다. 바뀐 동작은 [IMPROVEMENTS.md](IMPROVEMENTS.md).
-> 개선판 2차(2026-10-27)에서 하단 탭과 새 화면 파일을 더했다(IMPROVEMENTS.md 10절). 2026-10-29에 되돌려 지금은 색 토큰(`app_colors.dart`, `app_theme.dart`)만 남았다(IMPROVEMENTS.md 12절).
+> 개선판 2차(2026-10-27)에서 하단 탭과 새 화면 파일을 더했다(IMPROVEMENTS.md 10절). 2026-10-29에 되돌려 2차 파일 가운데 색 토큰(`app_colors.dart`, `app_theme.dart`)만 남았다(IMPROVEMENTS.md 12절).
+> 외부 리뷰 반영(2026-10-27~28, IMPROVEMENTS.md 11절)에서 바뀐 것은 아래 표의 해당 파일에 적었다.
 
 원본 화면 2개(IntroActivity, MainActivity)와 QR 화면을 Flutter 화면으로 옮겼다. Android 쪽 액티비티는 Flutter용 하나(`MainActivity.kt`)뿐이다. 원본에서 Android가 직접 그리거나 처리하던 것(시스템 대화상자, 토스트, 인텐트, 권한, NFC, 비콘, 다운로드, 파일 선택)만 Kotlin이 같은 API로 처리하고, 채널(`kr.ac.ut.mobile.flutter/native`)로 주고받는다.
 
@@ -616,7 +619,7 @@ CoordinatorLayout (바깥 여백 1dp)
 |---|---|---|
 | `lib/main.dart` | — | 시작: 인트로 → 메인. 모든 화면을 투명 `Material`로 감쌈(6.3). 개선판: 테마 강조색은 학교 대표색 |
 | `lib/src/intro_screen.dart` | `IntroActivity` | 시작 이미지, 기기 등록(5.2). 개선판: 권한을 묻지 않고, 등록 10초 제한과 연결 안내·다시 시도 |
-| `lib/src/main_screen.dart` | `MainActivity` | 명령 처리기, 메인·팝업 구성, 메뉴·버튼, 대화상자, 로딩, 뒤로가기, NFC·비콘·QR·GPS 연결. 메서드 옆 주석이 원본 이름(`x0`, `E0`, `i1`, …). 개선판: 흔들기(센서) 없앰, 연결 안내, 기능별 권한 요청, 동영상 전체 화면. 1차 후속: 글자 크기 설정 변경 받기, 화면 크기 다시 재기, 원본 버그 고침(5.21). PR #7 리뷰 반영: 사용자 조작 없이 열린 창 숨기기 |
+| `lib/src/main_screen.dart` | `MainActivity` | 명령 처리기, 메인·팝업 구성, 메뉴·버튼, 대화상자, 로딩, 뒤로가기, NFC·비콘·QR·GPS 연결. 메서드 옆 주석이 원본 이름(`x0`, `E0`, `i1`, …). 개선판: 흔들기(센서) 없앰, 연결 안내, 기능별 권한 요청, 동영상 전체 화면. 1차 후속: 글자 크기 설정 변경 받기, 화면 크기 다시 재기, 원본 버그 고침(5.21). PR #7 리뷰 반영: 사용자 조작 없이 열린 창 숨기기. 외부 리뷰 반영: 팝업을 닫을 때 자식·손자 창도 닫기(`_a0`), 팝업을 바꾼 뒤 이전 웹뷰 해제(`_z0`) |
 | `lib/src/web_entry.dart` | `X0()`/`Z0()`/`onCreateWindow` | 웹뷰 하나(메인·팝업·자식·손자) 만들기. 개선판: 불러오기 상태(`page_load.dart`)와 Kotlin 웹뷰 이벤트 연결, 다시 시도, 방문 기록 지우기, 웹 글자 크기(1.3배 상한, `textZoomFor`) |
 | `lib/src/page_load.dart` (개선판) | — | 웹뷰 하나의 본문 불러오기 상태: 로딩 표시, 10초 지연·연결 실패 안내, 다시 시도 방법, 방문 기록 지우기 시점, 내려받기만 한 창 닫기(`closeWindowAfterDownload`) |
 | `lib/src/connection_notice.dart` (개선판) | — | 연결 실패·지연 안내 화면(시작 화면, 메인·팝업 웹뷰) |
@@ -626,12 +629,12 @@ CoordinatorLayout (바깥 여백 1dp)
 | `lib/src/legacy_widgets.dart` | 레이아웃 XML, `RoundedWebView` | 버튼, 로딩 표시, 웹뷰 모서리, alert·dialog·nfc 대화상자, 버튼 정사각형 칸(`SquareSlot`), 헤더·푸터 글자 배율 상한(`BarTextScale`), 헤더·푸터 배경(`BoxBackground`) |
 | `lib/src/legacy_json.dart` | `org.json` | 같은 예외 규칙, Android `toString()` 직렬화 |
 | `lib/src/android_color.dart` | `Color.parseColor` | |
-| `lib/src/allytte_http.dart` | `i2.a`, 내려받기 스레드 | POST 도우미(5.3), 아이콘·시작 이미지 내려받기 |
+| `lib/src/allytte_http.dart` | `i2.a`, 내려받기 스레드 | POST 도우미(5.3), 아이콘·시작 이미지 내려받기. 외부 리뷰 반영: 아이콘 받기 시간 제한(연결 3초·전체 10초) |
 | `lib/src/device_prefs.dart` | SharedPreferences `"device"` | |
 | `lib/src/qr_scan_screen.dart` | `ZxingActivity` | 같은 배치, 인식은 mobile_scanner(ML Kit). 개선판: 테두리·닫기 버튼을 그림 대신 코드로 그림 |
 | `lib/src/native_bridge.dart` | — | Kotlin 채널. 개선판: 기능별 권한 요청(`requestFeaturePermission`) |
-| `android/.../MainActivity.kt` | 두 액티비티의 Android 부분 | 권한, 시스템 대화상자(권한 설정 안내·루팅 안내), 토스트, 인텐트, NFC foreground dispatch·태그 읽기, GPS, AltBeacon, 파일 선택 결과 |
-| `android/.../WebViewBridge.kt` | WebView 설정·클라이언트 | 원본 설정값, `allytteAndroid` 객체, 링크 처리(sms/tel/mailto/intent/마켓), 다운로드, `window.open`·`window.close`, JS 알림창, 파일 선택. 개선판: 글자 크기(Dart가 정한 값)·확대, 웹뷰 이벤트(`webEvent`), 방문 기록 지우기, 메인 웹뷰 JS 알림창도 팝업과 같게 |
+| `android/.../MainActivity.kt` | 두 액티비티의 Android 부분 | 권한, 시스템 대화상자(권한 설정 안내·루팅 안내), 토스트, 인텐트, NFC foreground dispatch·태그 읽기, GPS, AltBeacon, 파일 선택 결과. 외부 리뷰 반영: `push_url`은 학교 주소만(`pushUrlOf`), `app` 명령(`launchPackage`), 위치 전송 주소(`gpsUrl`), 네트워크 판정(`isNetworkConnected`), 비콘 알림 정리, 종료 전 쿠키 저장(`exitApp`) |
+| `android/.../WebViewBridge.kt` | WebView 설정·클라이언트 | 원본 설정값, `allytteAndroid` 객체, 링크 처리(sms/tel/mailto/intent/마켓), 다운로드, `window.open`·`window.close`, JS 알림창, 파일 선택. 개선판: 글자 크기(Dart가 정한 값)·확대, 웹뷰 이벤트(`webEvent`), 방문 기록 지우기, 메인 웹뷰 JS 알림창도 팝업과 같게. 외부 리뷰 반영: `intent://` 정리(`sanitizeBrowsable`), `allytteAndroid`는 학교 주소 페이지에서만(`isSchoolPage`), 자식·손자 창 파일 접근 끔, 내려받기 파일명(`downloadFileName`) |
 | `tool/make_launcher_icons.py` (개선판) | `assets/app_icon_1024.png` | 런처 아이콘 만들기 |
 
 개선판 2차에서 남은 것(하단 탭과 새 화면 파일은 2026-10-29에 뺐다, IMPROVEMENTS.md 12절):
@@ -654,7 +657,7 @@ CoordinatorLayout (바깥 여백 1dp)
 
 ### 6.3 화면 모양
 
-- 원본 테마가 `Theme.AppCompat.Light`라서 Kotlin이 띄우는 시스템 대화상자(JS 알림, 권한 안내, 루팅)는 AppCompat 테마로 원본과 같은 모양이다. 버튼 색은 colorAccent(원본 #03dac5, 개선판은 학교 대표색 #76161B).
+- 원본 테마가 `Theme.AppCompat.Light`라서 Kotlin이 띄우는 시스템 대화상자(JS 알림, 권한 안내, 루팅)는 AppCompat 테마로 원본과 같은 모양이다. 버튼 색은 colorAccent(원본 #03dac5, 개선판은 대표색: 1차 #76161B, 2차부터 #A3162B).
 - Flutter가 그리는 부분(헤더·푸터 버튼, alert·dialog·nfc 대화상자, 로딩 표시)은 원본 XML 크기·색을 dp 그대로 옮겼다. 글꼴만 다를 수 있다(삼성 시스템 글꼴 대신 Flutter 글꼴). 개선판에서는 대화상자 글자도 휴대폰 글자 크기 설정을 따르고(원본은 dp 고정), alert 버튼은 학교 대표색이다.
 - 모든 화면은 `MaterialApp.builder`에서 투명 `Material`로 감싼다(`SmartMobileApp.wrapScreens`). 그래서 크기·색만 정한 글자도 원본 TextView처럼 밑줄 없음, 시스템 글꼴(Roboto), 굵기를 정하지 않으면 보통 굵기로 그려진다. 이전에는 메인 화면 위에 `Material`이 없어 노란 이중 밑줄·monospace·w900으로 나왔다(1장 "고친 것", 테스트 `test/text_style_test.dart`).
 - 앱 화면 크기(`Display.getSize`)는 창 크기에서 상태 표시줄과 내비게이션 바를 뺀 값으로 계산한다.

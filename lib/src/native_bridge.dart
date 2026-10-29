@@ -64,7 +64,8 @@ class NativeBridge {
   static Future<String?> takeLaunchPushUrl() =>
       _call<String>('takeLaunchPushUrl');
 
-  /// `U()`: 와이파이 또는 모바일 데이터로 연결되어 있는지.
+  /// `U()`: 인터넷에 연결되어 있는지. 원본은 와이파이·모바일 데이터만 보았고, 개선판은 기본
+  /// 네트워크가 인터넷을 쓸 수 있는지(`NET_CAPABILITY_INTERNET`)로 본다(VPN·유선랜 포함).
   static Future<bool> isNetworkConnected() async =>
       await _call<bool>('isNetworkConnected') ?? false;
 

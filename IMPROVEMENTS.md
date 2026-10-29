@@ -59,7 +59,7 @@
 | 5-1 | 웹 글자 85% 고정 | `textZoom = 85` | 100% × 휴대폰 글자 크기(fontScale), **1.3배까지**(1차 후속, 4절). 앱이 떠 있는 동안 바꿔도 바로 반영 | `web_entry.dart` `textZoomFor`, `main_screen.dart` `didChangeTextScaleFactor`, `WebViewBridge.kt` |
 | 5-8 | 앱 대화상자 글자도 크기 고정 | dp 단위(Flutter `TextScaler.noScaling`) | alert·dialog·nfc 대화상자와 QR 안내 글이 글자 크기 설정을 따름. 길어지면 대화상자가 스크롤. 높이가 정해진 헤더·푸터 안에서는 배율 상한(4절) | `legacy_widgets.dart`, `qr_scan_screen.dart` |
 | 5-2 | 두 손가락 확대가 막힘 | 확대 기능 꺼짐 + 페이지의 `user-scalable=no` | 두 손가락 확대 허용, 확대 버튼은 숨김. 첫 화면과 페이지 끝에서 viewport의 `user-scalable=no`·`maximum-scale`만 풀어 줌(4절) | `WebViewBridge.kt` `ALLOW_ZOOM_SCRIPT` |
-| 5-10 | 강조색이 개발 도구 기본값 | 파랑 #006BD0, 보라 #3700B3, 청록 #03DAC5, alert 버튼 #1B9CE8, QR 선 #1976D2, QR 테두리·닫기 버튼 청록 그림 | 학교 대표색 **#76161B** 하나. 어두운 QR 화면은 흰색 + 학교색 닫기 버튼(5절) | `lib/src/app_colors.dart`, `res/values/colors.xml`, `qr_scan_screen.dart` |
+| 5-10 | 강조색이 개발 도구 기본값 | 파랑 #006BD0, 보라 #3700B3, 청록 #03DAC5, alert 버튼 #1B9CE8, QR 선 #1976D2, QR 테두리·닫기 버튼 청록 그림 | 학교 대표색 **#76161B** 하나(2차에서 **#A3162B**로 바꿈, 10.8절). 어두운 QR 화면은 흰색 + 학교색 닫기 버튼(5절) | `lib/src/app_colors.dart`, `res/values/colors.xml`, `qr_scan_screen.dart` |
 | 6-11 | 동영상 전체 화면이 안 됨 | `onShowCustomView` 처리 없음, 세로 고정 | 전체 화면 지원. 전체 화면일 때만 시스템 바를 숨기고 가로 회전 허용. 뒤로 키는 전체 화면만 끝냄 | `main_screen.dart` `show`/`hide`, `web_entry.dart` |
 | 6-5~6-7 | 흔들기 오작동으로 신분증 노출 | 2.7g 한 번이면 흔들기, 어느 화면에서나 | **흔들기 감지를 없앰**(통합본 9장 "리뉴얼에서 제외할 기능"). 스마트 신분증은 메인 타일로 연다. `sensors_plus` 의존성도 뺌 | `main_screen.dart` |
 | 6-12 | 분할 화면·창 크기를 바꾸면 팝업이 창과 맞지 않음 | 원본은 화면이 처음부터 다시 만들어짐. 이식판은 처음 잰 화면 크기로 팝업 크기를 계산 | 크기가 바뀌면 다시 재고, 열려 있는 팝업도 80% 규칙으로 다시 맞춤(1차 후속, 7절) | `main_screen.dart` `_measureScreen`, `popup_animation.dart` `popupSizePx` |
@@ -582,7 +582,7 @@ PR #6 merge 전 커밋(`3ed4065`)을 로컬 세션이 에뮬레이터(Pixel 7 AV
 ### 10.11 클라우드 세션에서 확인한 것
 
 - `flutter analyze`: 문제 없음. 커밋마다(대표색 → 데이터 → 학식·교통 → 출결·도서관 → 하단 탭) 따로 꺼내 분석·시험해도 통과.
-- `flutter test`: **140개** 통과(1차 82개 + 2차 58개, 2차를 만들 때 수). 1차 시험은 바뀐 색 값만 맞췄다(`app_colors_test.dart` 3 → 5개). 이후 시험이 더해져(11절의 새 시험 5개 포함) 지금은 **147개**다(11.4절).
+- `flutter test`: **140개** 통과(1차 82개 + 2차 58개, 2차를 만들 때 수). 1차 시험은 바뀐 색 값만 맞췄다(`app_colors_test.dart` 3 → 5개). 이후 시험이 더해져(11절의 새 시험 5개 포함) **147개**가 됐고(11.4절), 2차 화면을 되돌린 뒤 **86개**다(12절).
   - `test/data_files_test.dart`(4): 앱 안 데이터 읽기, 파일마다 출처·가져온 날·적용 기간
   - `test/transit_logic_test.dart`(11): 다음 버스(목업 시각, 같은 분, 막차 뒤, 주말, 공휴일, 방학, 월·목·금만 다니는 차), 등교·하교 자동 선택, 다음 출발, 시각 표시
   - `test/meal_logic_test.dart`(3): 학식 날짜 줄(운영 요일, 오늘, 쉬는 날 이름), 열 때 고를 날, 식단 있음·쉬는 날·데이터 없는 날
