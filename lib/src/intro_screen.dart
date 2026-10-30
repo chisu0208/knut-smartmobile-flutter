@@ -8,6 +8,7 @@ import 'device_prefs.dart';
 import 'legacy_json.dart';
 import 'legacy_widgets.dart';
 import 'native_bridge.dart';
+import 'school_url.dart';
 import 'uuid.dart';
 
 /// 원본 `IntroActivity`(HANDOFF 5.2): (저장된 시작 이미지 내려받기) → 기기 등록.
@@ -34,6 +35,14 @@ class IntroScreen extends StatefulWidget {
       return false;
     }
   }
+
+  /// 기기 등록 주소. [pushUrl]은 Kotlin `pushUrlOf`가 `https://mobile.ut.ac.kr` 주소만 넘기지만,
+  /// 거기서는 Android `Uri`로 읽고 연결은 Dart `Uri`로 하므로 같은 파서로 다시 본다. 학교
+  /// 주소([isSchoolUrl])가 아니면 기본 등록 주소를 쓴다.
+  static String registerUrl(String? pushUrl, String query) =>
+      pushUrl != null && isSchoolUrl(pushUrl)
+      ? pushUrl
+      : 'https://mobile.ut.ac.kr//service/api/device/save$query';
 
   /// 푸시 알림으로 열린 경우의 `push_url`. 있으면 기기 등록 주소 대신 이 주소로 POST한다.
   final String? pushUrl;
@@ -84,9 +93,7 @@ class _IntroScreenState extends State<IntroScreen> {
         '?devicePlatform=android&modelName=${_info.model}&deviceToken=$token'
         '&osVersion=${_info.sdkInt}&osLang=${_info.language}&osName=${_info.release}'
         '&appVersion=${_info.versionName}&pushToken=${_prefs.pushToken}&siteId=0';
-    final String url =
-        widget.pushUrl ??
-        'https://mobile.ut.ac.kr//service/api/device/save$query';
+    final String url = IntroScreen.registerUrl(widget.pushUrl, query);
     final Stopwatch watch = Stopwatch()..start();
     final String? response = await allyttePost(
       url,

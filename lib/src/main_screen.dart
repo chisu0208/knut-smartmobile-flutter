@@ -275,11 +275,10 @@ class _MainScreenState extends State<MainScreen>
     }
   }
 
-  Map<String, String> get _extraHeaders => <String, String>{
-    'User-Agent': 'allytte ${_info.versionName}',
-    'allytte-device-token': _deviceToken,
-    'allytte-device-platform': 'android',
-  };
+  /// 웹뷰 공통 헤더. 기기 토큰이 들어 있어서 학교 주소에만 붙이고, 다른 주소는 헤더 없이 연다
+  /// ([commonHeaders]).
+  Map<String, String> _extraHeaders(String url) =>
+      commonHeaders(url, _info.versionName, _deviceToken);
 
   // ======================================================================
   // 명령 처리기 x0
@@ -399,9 +398,10 @@ class _MainScreenState extends State<MainScreen>
     '{"action":[{"command":"alert","config":{"message":"$message"}}]}',
   );
 
-  /// `O0(url)`: POST 후 응답을 다시 처리기에 넣는다(응답은 UI 스레드에서 처리).
+  /// `O0(url)`: POST 후 응답을 다시 처리기에 넣는다(응답은 UI 스레드에서 처리). 학교 주소가
+  /// 아니면 보내지 않는다([schoolPost]).
   void _post(String url) {
-    allyttePost(url, _info.versionName, _deviceToken).then((String? result) {
+    schoolPost(url, _info.versionName, _deviceToken).then((String? result) {
       if (mounted) _enqueue(result, fromBridge: false);
     });
   }
@@ -618,14 +618,19 @@ class _MainScreenState extends State<MainScreen>
     box.image = bgImage == 'null' ? null : await _p0(bgImage);
   }
 
-  /// `B0(url)`: 저장된 `webview`가 `popup`이면 팝업, 아니면 메인 웹뷰에 공통 헤더와 함께 불러온다.
+  /// `B0(url)`: 저장된 `webview`가 `popup`이면 팝업, 아니면 메인 웹뷰에 공통 헤더(학교 주소일
+  /// 때만)와 함께 불러온다.
   ///
   /// [clearHistory]면 그 페이지가 끝난 뒤 방문 기록을 지운다(`webview`/`main` 명령). 원본은
   /// 기록을 남겨서, 첫 실행에 권한 안내 페이지를 거쳐 메인으로 간 뒤 뒤로 키를 누르면 이전 서버
   /// 페이지(`page/authority#1`)로 돌아가 앱 헤더 없이 다시 불러왔고, 서버가 HTTP 404를 보였다.
   void _b0(String url, {bool clearHistory = false}) {
     final WebEntry? target = _prefs.webview == 'popup' ? _popup : _main;
-    target?.loadUrl(url, _extraHeaders, clearHistoryWhenDone: clearHistory);
+    target?.loadUrl(
+      url,
+      _extraHeaders(url),
+      clearHistoryWhenDone: clearHistory,
+    );
   }
 
   /// `c1(url)`: 팝업에 불러오기. 네트워크가 없으면 불러오지 않는다.
@@ -634,10 +639,10 @@ class _MainScreenState extends State<MainScreen>
   /// 개선판은 팝업 안에 연결 안내와 다시 시도 버튼을 보인다(통합본 1-9).
   Future<void> _c1(String url) async {
     if (!await NativeBridge.isNetworkConnected()) {
-      _popup?.showOffline(url, _extraHeaders);
+      _popup?.showOffline(url, _extraHeaders(url));
       return;
     }
-    _popup?.loadUrl(url, _extraHeaders);
+    _popup?.loadUrl(url, _extraHeaders(url));
   }
 
   // ======================================================================

@@ -21,12 +21,13 @@
 | 2차 | 2026-10-27 | 하단 탭 5개와 학식·교통·출결·도서관 탭, 대표색 #A3162B |
 | 외부 리뷰 반영 | 2026-10-27~28 | 보안 4건과 작은 버그(IMPROVEMENTS.md 11절) |
 | 2차 화면 되돌림 | 2026-10-29 | 하단 탭과 새 화면을 빼고 1차 모양으로. 대표색과 외부 리뷰 반영은 남김(IMPROVEMENTS.md 12절) |
+| 기기 토큰 주소 제한 | 2026-10-30 | 기기 토큰이 든 웹뷰 공통 헤더와 결과 POST를 학교 주소에만 보냄. POST 리디렉트도 학교 주소로만(IMPROVEMENTS.md 13절) |
 
 5장 규칙 가운데 개선판에서 바뀐 곳에는 **(개선판)** 표시를 달았다. 자세한 내용은 IMPROVEMENTS.md.
 
 ### 현재 상태
 
-- `flutter analyze` 문제 없음, 시험 91개 통과, `flutter build apk --debug` 성공.
+- `flutter analyze` 문제 없음, 시험 128개 통과, `flutter build apk --debug` 성공.
 - 에뮬레이터(Pixel 7 AVD, Android 17)에서 로그인 전후 확인을 마쳤다: 메인·하단 바·팝업·뒤로 키, 로그인 후 타일 16개 전부, ≡ 메뉴 학사 항목, 내려받기, 동영상 전체 화면, 글자 크기 200%. 앱 크래시·Dart 예외 로그 없음.
 - 학생시간표조회는 학교 서버 SQL 오류(`ORA-00923`)라 앱 문제가 아니다.
 - 확인하지 못한 것: 실기기(SM-F741N), NFC·비콘·GPS, 실제 두 손가락 확대 동작.
@@ -188,7 +189,7 @@ MainActivity
 
 - 레이아웃: 배경 drawable `0x7f0700f2`(xxhdpi split APK에만 있음). `iv_intro`는 `gone`이라 보이는 건 배경뿐이다.
   - 사용자 폰에서 구하기: `adb shell pm path kr.ac.ut.mobile` → `split_config.xxhdpi.apk` pull.
-- 푸시로 열렸으면 `push_url` extra를 기억한다. **(개선판)** `https://mobile.ut.ac.kr` 주소만 받는다
+- 푸시로 열렸으면 `push_url` extra를 기억한다. **(개선판)** `https://mobile.ut.ac.kr` 주소만 받는다(Kotlin `pushUrlOf`). 등록할 때 Dart `registerUrl`이 학교 주소(`isSchoolUrl`)인지 다시 보고, 아니면 기본 등록 주소로 보냄
 - 권한(모두 허용돼야 다음으로): **(개선판)** 시작할 때 묻지 않고 기능을 쓸 때 그 권한만 요청
 
 | SDK | 요청 권한 |
@@ -217,6 +218,7 @@ MainActivity
 ### 5.3 POST 도우미 (`RequestHttpURLConnection_i2a.java`)
 
 - POST, 본문 없음, 연결 제한 3초(읽기 제한 없음). **(개선판)** 기기 등록은 전체 10초 제한
+- 리디렉트는 `HttpURLConnection` 기본값대로 따라간다(SDK 소스로 확인, 앱으로는 보지 않음): POST에 온 300~303은 GET으로 바꿔 최대 20번, http·https가 바뀌면 따라가지 않음, 다른 호스트로 가도 `Authorization` 말고는 헤더(기기 토큰 포함)를 그대로 붙임. **(개선판)** 학교 주소로 갈 때만 따라감(아니면 null). 따라가는 응답·횟수는 Dart `HttpClient`와 같아서 POST에 온 300~302는 따라가지 않고 그 응답을 그대로 읽으며, 최대 5번. http→https는 따라가고 https→http는 따라가지 않음
 - 헤더: `User-Agent: allytte {versionName}`, `allytte-device-token: {token}`, `allytte-device-platform: android`
 - 200이면 본문, 아니면 오류 본문을 JSON으로 파싱해 `"urlConnResult": 응답코드`를 더한 문자열
 - 어떤 예외든 `null`(→ 명령 처리기는 아무것도 안 함)
@@ -276,7 +278,7 @@ CoordinatorLayout (바깥 여백 1dp)
 | `exit` | 앱 종료(`finishAffinity`) |
 | `url` | `config.url`로 POST(5.3) → 응답을 다시 명령 처리기에 |
 
-"POST 후 응답을 명령 처리기에 넣는다"(`O0`)는 NFC·GPS·흔들기·비콘·QR·url 모두 공통이다.
+"POST 후 응답을 명령 처리기에 넣는다"(`O0`)는 NFC·GPS·흔들기·비콘·QR·url 모두 공통이다. **(개선판)** 주소가 학교 주소(`ut.ac.kr`과 그 하위, http·https)가 아니면 보내지 않는다(규칙은 `lib/src/school_url.dart`).
 
 **(재확인) 명령이 어디서 왔는지에 따라 달라지는 점**
 
@@ -380,7 +382,7 @@ CoordinatorLayout (바깥 여백 1dp)
 
 ### 5.10 URL 로드
 
-- 공통 헤더: `User-Agent: allytte {versionName}`, `allytte-device-token`, `allytte-device-platform: android` — **loadUrl의 추가 헤더로만** 붙는다(링크 이동 등 이후 요청에는 없음)
+- 공통 헤더: `User-Agent: allytte {versionName}`, `allytte-device-token`, `allytte-device-platform: android` — **loadUrl의 추가 헤더로만** 붙는다(링크 이동 등 이후 요청에는 없음). **(개선판)** 학교 주소(`ut.ac.kr`과 그 하위, http·https)일 때만 붙이고, 다른 주소는 헤더 없이 불러옴
 - B0(url): 저장된 `webview`가 `"popup"`이면 팝업 웹뷰, 아니면 메인 웹뷰에 로드
 - c1(url, 팝업 전용): 네트워크(와이파이·모바일) 연결이 없으면 `네트워크가 연결되어 있지 않습니다.` 알림 후 중단. **(개선판)** 팝업 안에 연결 안내. 판정은 기본 네트워크가 인터넷을 쓸 수 있는지(VPN·유선랜 포함)
 
@@ -509,19 +511,20 @@ CoordinatorLayout (바깥 여백 1dp)
 | 파일 | 원본 | 내용 |
 |---|---|---|
 | `lib/main.dart` | — | 시작: 인트로 → 메인. 모든 화면을 투명 `Material`로 감쌈(6.3). 테마 강조색은 학교 대표색 |
-| `lib/src/intro_screen.dart` | `IntroActivity` | 시작 이미지, 기기 등록(5.2). *개선판*: 권한을 묻지 않음, 등록 10초 제한과 연결 안내·다시 시도 |
-| `lib/src/main_screen.dart` | `MainActivity` | 명령 처리기, 메인·팝업 구성, 메뉴·버튼, 대화상자, 로딩, 뒤로가기, NFC·비콘·QR·GPS. 메서드 옆 주석이 원본 이름(`x0`, `E0`, `i1`, …). *개선판*: 연결 안내, 기능별 권한 요청, 동영상 전체 화면, 글자 크기 변경 받기, 화면 크기 다시 재기, 사용자 조작 없이 열린 창 숨기기, 팝업을 닫거나 바꿀 때 자식·손자 창 정리(`_a0`·`_z0`) |
+| `lib/src/intro_screen.dart` | `IntroActivity` | 시작 이미지, 기기 등록(5.2). *개선판*: 권한을 묻지 않음, 등록 10초 제한과 연결 안내·다시 시도, `push_url`을 Dart로 다시 확인(`registerUrl`) |
+| `lib/src/main_screen.dart` | `MainActivity` | 명령 처리기, 메인·팝업 구성, 메뉴·버튼, 대화상자, 로딩, 뒤로가기, NFC·비콘·QR·GPS. 메서드 옆 주석이 원본 이름(`x0`, `E0`, `i1`, …). *개선판*: 연결 안내, 기능별 권한 요청, 동영상 전체 화면, 글자 크기 변경 받기, 화면 크기 다시 재기, 사용자 조작 없이 열린 창 숨기기, 팝업을 닫거나 바꿀 때 자식·손자 창 정리(`_a0`·`_z0`), 기기 토큰이 든 공통 헤더와 POST는 학교 주소에만(`_extraHeaders`·`_post`가 `commonHeaders`·`schoolPost`를 부름) |
 | `lib/src/web_entry.dart` | `X0()`/`Z0()`/`onCreateWindow` | 웹뷰 하나(메인·팝업·자식·손자) 만들기. *개선판*: 불러오기 상태 연결, 다시 시도, 방문 기록 지우기, 웹 글자 크기(`textZoomFor`) |
 | `lib/src/page_load.dart` | — | *개선판*: 웹뷰 하나의 불러오기 상태(로딩 표시, 10초 지연·실패 안내, 다시 시도, 방문 기록 지우기 시점, 내려받기만 한 창 닫기) |
 | `lib/src/connection_notice.dart` | — | *개선판*: 연결 실패·지연 안내 화면 |
 | `lib/src/offline_banner.dart` | — | *개선판*: 앱을 쓰는 동안 인터넷이 끊기면 홈 맨 위 안내 띠(`OfflineBanner`), 잠깐 끊김을 거르는 `OfflineTracker`. Kotlin `networkChanged`를 받음 |
+| `lib/src/school_url.dart` | — | *개선판*: 기기 토큰을 보내도 되는 학교 주소인지(`isSchoolUrl`, 이미 읽은 주소는 `isSchoolUri`). `WebViewBridge.kt` `isSchoolPage`와 같은 규칙이지만, 웹뷰가 정리하기 전의 명령 문자열을 Dart `Uri`로 읽으므로 사용자 정보(`@` 앞)가 있거나, 호스트(대문자는 소문자로 바뀜)에 영문 소문자·숫자·`.`·`-` 밖의 글자(`%XX`로 남은 것이나 `_`·`!` 같은 기호)가 있으면 학교 주소로 보지 않음 |
 | `lib/src/app_colors.dart` | `colors.xml` | *개선판*: Figma 색 토큰 `AppColors`, 학교 대표색 `schoolColor`(= primary, Android `colors.xml`의 `school`과 같은 값) |
 | `lib/src/popup_animation.dart` | `res/anim`, 애니메이션 리스너 | 옛 Android 애니메이션 규칙(5.12), 정렬별 팝업 크기(`popupSizePx`) |
 | `lib/src/popup_state.dart` | `f7670B`·`f7672C`·`f7676E`, A0 | 팝업 보임 상태와 뒤로가기 주인(5.7·5.12) |
 | `lib/src/legacy_widgets.dart` | 레이아웃 XML, `RoundedWebView` | 버튼, 로딩 표시, 웹뷰 모서리, alert·dialog·nfc 대화상자, `SquareSlot`, `BarTextScale`, `BoxBackground` |
 | `lib/src/legacy_json.dart` | `org.json` | 같은 예외 규칙, Android `toString()` 직렬화 |
 | `lib/src/android_color.dart` | `Color.parseColor` | |
-| `lib/src/allytte_http.dart` | `i2.a`, 내려받기 스레드 | POST 도우미(5.3), 아이콘·시작 이미지 내려받기(*개선판*: 연결 3초·전체 10초 제한) |
+| `lib/src/allytte_http.dart` | `i2.a`, 내려받기 스레드 | POST 도우미(5.3, *개선판*: 리디렉트는 학교 주소로만 `nextRedirect`. 학교 주소에만 붙이는 공통 헤더 `commonHeaders`와 결과 POST `schoolPost`), 아이콘·시작 이미지 내려받기(*개선판*: 아이콘은 연결 3초·전체 10초 제한) |
 | `lib/src/device_prefs.dart` | SharedPreferences `"device"` | |
 | `lib/src/qr_scan_screen.dart` | `ZxingActivity` | 같은 배치, 인식은 mobile_scanner(ML Kit). *개선판*: 테두리·닫기 버튼을 코드로 그림 |
 | `lib/src/native_bridge.dart` | — | Kotlin 채널. *개선판*: 기능별 권한 요청(`requestFeaturePermission`) |
@@ -540,6 +543,7 @@ CoordinatorLayout (바깥 여백 1dp)
   - 개선판: 동영상 전체 화면은 `setCustomWidgetCallbacks`로 메인 화면이 띄운다.
 - `window.open`은 Kotlin이 요청을 붙잡아 두고 Dart가 새 웹뷰를 만든 뒤 연결한다. 자식·손자 창은 팝업 웹뷰와 같은 틀에 쌓인다.
 - 주소 불러오기는 원본처럼 네이티브 `loadUrl(url, 헤더)`에 문자열을 그대로 넘긴다.
+  - 개선판: 공통 헤더(5.10)는 학교 주소일 때만 넘기고, 다른 주소에는 빈 헤더를 넘긴다(`school_url.dart`, IMPROVEMENTS.md 13절).
 - `flutter_inappwebview`는 2024년 이후 출시가 없고 AGP 9에서 빌드가 깨져서 쓰지 않았다.
 
 ### 6.3 화면 모양
