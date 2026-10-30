@@ -49,3 +49,6 @@ app.*.map.json
 
 # 팀원이 보낸 자료(파일 이름에 이름·학번이 있어 커밋하지 않는다)
 team/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
