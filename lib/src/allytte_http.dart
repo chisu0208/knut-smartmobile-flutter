@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 import 'package:path_provider/path_provider.dart';
 
 import 'legacy_json.dart';
+import 'school_url.dart';
 
 /// `i2.a.a(url, versionName, deviceToken)` — 본문 없는 POST(HANDOFF 5.3).
 ///
@@ -15,6 +16,10 @@ import 'legacy_json.dart';
 ///
 /// 원본은 연결 제한(3초)만 있고 응답은 끝없이 기다린다. 개선판은 [timeout]을 주면 연결부터
 /// 응답을 다 읽을 때까지 그 시간 안에 끝나지 않을 때 null을 돌려준다(통합본 1-10).
+///
+/// 리디렉트는 학교 주소로 갈 때만 따라간다([nextRedirect]). Dart `HttpClient`에 맡기면 POST에
+/// 303이 왔을 때 학교 밖 호스트로도 기기 토큰 헤더를 붙인 채 따라가고, 그 응답이 명령으로
+/// 실행된다.
 Future<String?> allyttePost(
   String url,
   String versionName,
@@ -33,27 +38,121 @@ Future<String?> allyttePost(
   }
 }
 
+/// 원본이 학교 서버에 보내는 공통 헤더(HANDOFF 5.3·5.10). 기기 토큰이 들어 있다.
+Map<String, String> _allytteHeaders(String versionName, String deviceToken) =>
+    <String, String>{
+      'User-Agent': 'allytte $versionName',
+      'allytte-device-token': deviceToken,
+      'allytte-device-platform': 'android',
+    };
+
+/// 웹뷰 `loadUrl`에 붙이는 공통 헤더(원본 `B0`·`c1`, HANDOFF 5.10). 기기 토큰이 들어 있어서
+/// 학교 주소([isSchoolUrl])에만 붙이고, 다른 주소는 빈 맵이다(페이지는 헤더 없이 열린다).
+/// 원본은 명령이 준 주소라면 어디든 붙였다.
+Map<String, String> commonHeaders(
+  String url,
+  String versionName,
+  String deviceToken,
+) => isSchoolUrl(url)
+    ? _allytteHeaders(versionName, deviceToken)
+    : const <String, String>{};
+
+/// 명령이 준 주소로 보내는 결과 POST(원본 `O0`: `url`·QR·위치·NFC·비콘). 기기 토큰을 붙여
+/// 보내고 응답을 명령으로 실행하므로, 학교 주소([isSchoolUrl])가 아니면 보내지 않고 null.
+/// 원본은 명령이 준 주소라면 어디든 보냈다.
+Future<String?> schoolPost(
+  String url,
+  String versionName,
+  String deviceToken,
+) async {
+  if (!isSchoolUrl(url)) return null;
+  return allyttePost(url, versionName, deviceToken);
+}
+
+/// 리디렉트를 따라가는 최대 횟수(Dart `HttpClient` 기본값).
+const int _maxRedirects = 5;
+
 Future<String> _post(
   HttpClient client,
   String url,
   String versionName,
   String deviceToken,
 ) async {
-  final HttpClientRequest request = await client.postUrl(Uri.parse(url));
-  request.headers
-    ..set(HttpHeaders.userAgentHeader, 'allytte $versionName')
-    ..set('allytte-device-token', deviceToken)
-    ..set('allytte-device-platform', 'android')
-    // Android HttpURLConnection(OkHttp)이 POST에 붙이는 기본값.
-    ..set(HttpHeaders.contentTypeHeader, 'application/x-www-form-urlencoded');
-  request.contentLength = 0;
-  final HttpClientResponse response = await request.close();
-  final String text = await response.transform(utf8.decoder).join();
-  // BufferedReader.readLine()으로 이어 붙이므로 줄바꿈 문자가 모두 빠진다.
-  final String body = text.replaceAll('\r', '').replaceAll('\n', '');
-  final JObj json = JObj.parse(body);
-  json.map['urlConnResult'] = response.statusCode;
-  return json.toString();
+  String method = 'POST';
+  Uri uri = Uri.parse(url);
+  final Set<Uri> redirectedTo = <Uri>{};
+  while (true) {
+    final HttpClientRequest request = await client.openUrl(method, uri);
+    request.followRedirects = false;
+    _allytteHeaders(versionName, deviceToken).forEach(request.headers.set);
+    if (method == 'POST') {
+      // Android HttpURLConnection(OkHttp)이 POST에 붙이는 기본값.
+      request.headers.set(
+        HttpHeaders.contentTypeHeader,
+        'application/x-www-form-urlencoded',
+      );
+      request.contentLength = 0;
+    }
+    final HttpClientResponse response = await request.close();
+    // 리디렉트가 아니면 Location을 읽지 않는다(값이 둘이면 value()가 예외를 던진다).
+    final Uri? next = response.isRedirect
+        ? nextRedirect(
+            method,
+            uri,
+            response.statusCode,
+            response.headers.value(HttpHeaders.locationHeader),
+          )
+        : null;
+    if (next == null) {
+      final String text = await response.transform(utf8.decoder).join();
+      // BufferedReader.readLine()으로 이어 붙이므로 줄바꿈 문자가 모두 빠진다.
+      final String body = text.replaceAll('\r', '').replaceAll('\n', '');
+      final JObj json = JObj.parse(body);
+      json.map['urlConnResult'] = response.statusCode;
+      return json.toString();
+    }
+    await response.drain<void>();
+    // Dart처럼 5번을 넘거나, 앞서 넘겨 준 주소가 다시 오면 멈춘다. 다만 Dart는 `Location` 값을
+    // 풀기 전 그대로 비교하고, 여기서는 푼 주소를 비교한다.
+    if (redirectedTo.length == _maxRedirects || !redirectedTo.add(next)) {
+      throw HttpException('redirect limit or loop', uri: next);
+    }
+    method = 'GET';
+    uri = next;
+  }
+}
+
+/// [method] 요청([from])의 응답이 리디렉트면 다음에 GET으로 부를 주소, 아니면 null.
+///
+/// 리디렉트로 보는 응답은 Dart `HttpClient`와 같다: POST는 303(GET으로 바꿔 따라감), GET은
+/// 301·302·303·307·308. 다음 요청에도 기기 토큰이 붙으므로 아래 경우에는 [HttpException]을
+/// 던진다(그러면 [allyttePost]는 null).
+/// - `Location`이 없다.
+/// - 넘겨 준 주소가 학교 주소([isSchoolUri])가 아니다.
+/// - https에서 http로 내려간다. 토큰이 평문으로 가고 응답을 중간에서 바꿔 끼울 수 있다. 원본
+///   (Android `HttpURLConnection`)은 http·https를 바꾸는 리디렉트를 아예 따라가지 않는다.
+Uri? nextRedirect(String method, Uri from, int statusCode, String? location) {
+  final bool redirect = method == 'POST'
+      ? statusCode == HttpStatus.seeOther
+      : const <int>{
+          HttpStatus.movedPermanently,
+          HttpStatus.found,
+          HttpStatus.seeOther,
+          HttpStatus.temporaryRedirect,
+          HttpStatus.permanentRedirect,
+        }.contains(statusCode);
+  if (!redirect) return null;
+  if (location == null) {
+    throw HttpException('redirect without Location', uri: from);
+  }
+  final Uri target = from.resolve(location);
+  if (!isSchoolUri(target)) {
+    throw HttpException('redirect outside the school', uri: target);
+  }
+  if (from.scheme == 'https' && target.scheme != 'https') {
+    throw HttpException('redirect from https to http', uri: target);
+  }
+  return target;
 }
 
 /// 메뉴 아이콘·헤더 배경을 내려받는 스레드(`d`/`e`)의 결과.
