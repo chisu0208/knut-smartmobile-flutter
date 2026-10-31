@@ -1,0 +1,5 @@
+# CRLF로 풀린 .gitignore는 git이 빈 줄을 빈 패턴으로 읽어서
+# `git check-ignore <폴더>/`가 아무 폴더나 무시된다고 잘못 보고한다(Windows, core.autocrlf=true).
+# .ignore는 graft가 LF로 덧붙이고 지우는 파일이라 같이 LF로 둔다.
+.gitignore text eol=lf
+.ignore text eol=lf
